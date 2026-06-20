@@ -12,6 +12,7 @@ import {
 import { Card, CardHeader } from "./ui/Card.jsx";
 import { Counter } from "./ui/Counter.jsx";
 import { CalcRow } from "./ui/CalcRow.jsx";
+import { EditableField } from "./ui/EditableField.jsx";
 import { ReceiptEditor } from "./ReceiptEditor.jsx";
 import { TRIP_MODES, REGION_RATES, fmt } from "../lib/constants.js";
 
@@ -30,7 +31,7 @@ function Label({ children }) {
   );
 }
 
-export function CalculationCard({ current, state, setState, calc }) {
+export function CalculationCard({ current, setCurrentField, state, setState, calc }) {
   const {
     mode,
     companions,
@@ -57,34 +58,52 @@ export function CalculationCard({ current, state, setState, calc }) {
       {/* 출장자 / 일시 / 지 / 거리 */}
       <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 border-b border-slate-100">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">출장자</div>
-          <div className="text-sm text-slate-800">
-            {current.traveler
-              ? `${current.traveler}${current.dept ? ` (${current.dept})` : ""}`
-              : <span className="text-slate-400">—</span>}
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">출장자</div>
+          <EditableField
+            value={
+              current.traveler
+                ? `${current.traveler}${current.dept ? ` (${current.dept})` : ""}`
+                : ""
+            }
+            onChange={(v) => {
+              const m = /^(.+?)\s*\(([^)]+)\)\s*$/.exec(v);
+              setCurrentField(m ? { traveler: m[1].trim(), dept: m[2].trim() } : { traveler: v });
+            }}
+            placeholder="출장자 이름 (부서)"
+          />
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">출장일시</div>
-          <div className="text-sm text-slate-800">
-            {current.dateLabel || current.time
-              ? `${current.dateLabel || ""} ${current.time || ""}`.trim()
-              : <span className="text-slate-400">—</span>}
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">출장일시</div>
+          <EditableField
+            value={`${current.dateLabel || ""} ${current.time || ""}`.trim()}
+            onChange={(v) => {
+              const m = /^(\S+)\s+(.+)$/.exec(v.trim());
+              setCurrentField(
+                m
+                  ? { dateLabel: m[1], date: m[1].replaceAll(".", "-"), time: m[2] }
+                  : { dateLabel: v.trim(), date: v.trim().replaceAll(".", "-"), time: "" }
+              );
+            }}
+            placeholder="2026.05.22 13:00 ~ 18:00"
+          />
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">출장지</div>
-          <div className="text-sm text-slate-800">
-            {current.place || <span className="text-slate-400">—</span>}
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">출장지</div>
+          <EditableField
+            value={current.place || ""}
+            onChange={(v) => setCurrentField({ place: v })}
+            placeholder="출장지 (방문기관)"
+          />
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">이동거리</div>
-          <div className="text-sm text-slate-800">
-            {current.distance > 0
-              ? `${current.distance} km · 카카오맵 자동`
-              : <span className="text-slate-400">—</span>}
-          </div>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">이동거리</div>
+          <EditableField
+            value={current.distance || ""}
+            onChange={(v) => setCurrentField({ distance: Number(v) || 0 })}
+            placeholder="거리 km"
+            suffix=" km"
+            type="number"
+          />
         </div>
       </div>
 

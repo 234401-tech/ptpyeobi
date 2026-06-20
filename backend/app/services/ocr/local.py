@@ -22,7 +22,11 @@ _RX_DATE = re.compile(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})")
 _RX_TIME = re.compile(r"(\d{1,2}):(\d{2})")
 _RX_DIST = re.compile(r"(\d+(?:\.\d+)?)\s*km", re.IGNORECASE)
 _RX_AMOUNT = re.compile(r"([\d,]{3,})\s*원")
-_RX_AMOUNT_BARE = re.compile(r"\b([\d,]{4,})\b")
+# 정상 천단위 콤마만 (앞뒤로 숫자/콤마가 더 붙어 있으면 매칭 안 함 → 234,506002638 같은 잡음 배제)
+_RX_AMOUNT_KOMMA = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+)(?![\d,])")
+# 사업자번호 (xxx-xx-xxxxx) / 카드번호 마스킹 패턴 — 영수증 금액 아닌 메타 정보
+_RX_BIZ_NO = re.compile(r"\d{3}-\d{2}-\d{5}")
+_RX_CARD_MASK = re.compile(r"\d{4}-?\*+")
 
 _OCR = None
 
@@ -103,20 +107,42 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
                 pass
     distance_km = max(distances) if distances else None
 
-    # 영수증 후보: "원"이 포함된 라인의 금액 추출
+    # 영수증 후보: "원" 표기가 있는 줄 우선, 없으면 천단위 콤마 숫자.
+    # 거리(km)·TEL·사업자번호·카드 마스킹 줄은 제외.
     receipts: list[ReceiptExtraction] = []
+    seen_pairs: set[tuple[int, str]] = set()  # 동일 라인의 같은 금액 중복 방지
     for t, conf in lines:
-        if "원" not in t:
+        low = t.lower()
+        if "km" in low or "tel" in low:
             continue
-        for m in _RX_AMOUNT.finditer(t):
+        if _RX_BIZ_NO.search(t) or _RX_CARD_MASK.search(t):
+            continue
+
+        # 1) "…원" 패턴 — 더 신뢰도 높음
+        matches = [(m.group(1), True) for m in _RX_AMOUNT.finditer(t)]
+        # 2) 천단위 콤마 — "원" 키워드 없어도 영수증 후보
+        if not matches:
+            matches = [(m.group(1), False) for m in _RX_AMOUNT_KOMMA.finditer(t)]
+
+        for raw, has_won in matches:
             try:
-                amt = int(m.group(1).replace(",", ""))
+                amt = int(raw.replace(",", ""))
             except ValueError:
                 continue
-            if 500 <= amt <= 1_000_000:
-                # 금액 토큰 제거한 나머지를 label 로
-                label = _RX_AMOUNT.sub("", t).strip(" :·-")[:60] or "영수증"
-                receipts.append(ReceiptExtraction(label, amt, conf))
+            if not (500 <= amt <= 1_000_000):
+                continue
+            key = (amt, t)
+            if key in seen_pairs:
+                continue
+            seen_pairs.add(key)
+            label = _RX_AMOUNT.sub("", t).strip(" :·-") if has_won else t.strip()
+            label = re.sub(r"\d[\d,]*", "", label).strip(" :·-()[]")[:60]
+            # 의미 있는 문자가 3자 미만이면 "영수증"으로 폴백 (한자/기호만 남는 경우)
+            if len(re.sub(r"[\s:·\-—_·.]+", "", label)) < 3:
+                label = "영수증"
+            # 천단위 콤마만 매칭은 신뢰도 약간 낮춤
+            receipt_conf = conf if has_won else conf * 0.85
+            receipts.append(ReceiptExtraction(label, amt, receipt_conf))
         if len(receipts) >= 10:
             break
 

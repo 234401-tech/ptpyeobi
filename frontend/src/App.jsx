@@ -30,6 +30,7 @@ export default function App() {
           />
           <CalculationCard
             current={t.current}
+            setCurrentField={t.setCurrentField}
             state={t.state}
             setState={t.setState}
             calc={t.calc}

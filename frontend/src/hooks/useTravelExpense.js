@@ -15,6 +15,7 @@ function recentFuelRange() {
 
 export function useTravelExpense() {
   const [current, setCurrent] = useState(MOCK_CURRENT);
+  const setCurrentField = (patch) => setCurrent((c) => ({ ...c, ...patch }));
   const [uploadId, setUploadId] = useState(null);
 
   // 정산 입력 상태
@@ -194,6 +195,7 @@ export function useTravelExpense() {
 
   return {
     current,
+    setCurrentField,
     state,
     setState,
     setCompanionNames,
