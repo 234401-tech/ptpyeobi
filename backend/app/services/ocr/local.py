@@ -13,6 +13,7 @@ PDF는 지원하지 않음 (이미지: PNG/JPG/JPEG만). PDF 지원 필요 시 p
 from __future__ import annotations
 
 import re
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -28,6 +29,13 @@ _RX_AMOUNT_KOMMA = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+)(?![\d,])")
 _RX_BIZ_NO = re.compile(r"\d{3}-\d{2}-\d{5}")
 _RX_CARD_MASK = re.compile(r"\d{4}-?\*+")
 
+# 라벨 기반 추출: "출 장 자" 처럼 띄어진 경우도 흡수, 콜론 유무 무관
+_RX_LABEL_TRAVELER = re.compile(r"출\s*장?\s*자\s*[:：]?\s*(.+)")
+_RX_LABEL_PLACE = re.compile(r"출\s*장?\s*지\s*[:：]?\s*(.+)")
+_RX_LABEL_DATETIME = re.compile(r"출\s*장?\s*일?\s*시\s*[:：]?\s*(.+)")
+# 한국어 인명 후보 (콤마/공백/그리고 로 구분, 각 2~5자 한글)
+_RX_KOR_NAMES = re.compile(r"[가-힣]{2,5}(?:\s*[,및과/\s]\s*[가-힣]{2,5})*")
+
 _OCR = None
 
 
@@ -40,6 +48,32 @@ def _get_ocr():
     return _OCR
 
 
+def _preprocess(file_path: str) -> str:
+    """작은 한글 인식률 개선: 2배 업스케일 + 콘트라스트 강화.
+
+    원본은 건드리지 않고 임시 파일에 저장 후 경로 반환.
+    PIL/Pillow 는 rapidocr-onnxruntime 의존성으로 이미 설치돼 있음.
+    """
+    try:
+        from PIL import Image, ImageEnhance, ImageOps
+    except ImportError:
+        return file_path
+
+    img = Image.open(file_path)
+    if img.mode not in ("L", "RGB"):
+        img = img.convert("RGB")
+    # 그레이스케일은 노이즈를 줄이지만 컬러 도장/스탬프를 잃음. RGB 유지.
+    img = ImageEnhance.Contrast(img).enhance(1.4)
+    img = ImageEnhance.Sharpness(img).enhance(1.3)
+    if img.width < 2000:
+        scale = max(2, 2400 // img.width)
+        img = img.resize((img.width * scale, img.height * scale), Image.LANCZOS)
+    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    tmp.close()
+    img.save(tmp.name, "PNG")
+    return tmp.name
+
+
 class LocalOCR(OCRAdapter):
     name = "local"
 
@@ -50,8 +84,15 @@ class LocalOCR(OCRAdapter):
                 f"local OCR 은 이미지만 지원 (입력: {ext}). PDF는 claude_vision/upstage 사용."
             )
 
+        # 작은 한글 잘 잡히도록 이미지 전처리
+        preprocessed = _preprocess(file_path)
         ocr = _get_ocr()
-        result, _ = ocr(file_path)
+        try:
+            result, _ = ocr(preprocessed)
+        finally:
+            if preprocessed != file_path:
+                Path(preprocessed).unlink(missing_ok=True)
+
         if not result:
             return TripExtraction(confidence=0.0)
 
@@ -67,8 +108,40 @@ class LocalOCR(OCRAdapter):
         return _parse(lines)
 
 
+def _label_value(lines: list[tuple[str, float]], rx) -> str | None:
+    """라벨 정규식으로 같은 줄에서 값 추출. 같은 줄에 값이 없으면 다음 줄."""
+    for i, (t, _) in enumerate(lines):
+        m = rx.search(t)
+        if not m:
+            continue
+        value = m.group(1).strip(" :：·-()[]").strip()
+        if value:
+            return value
+        # 같은 줄이 비었으면 바로 다음 줄 값 후보
+        if i + 1 < len(lines):
+            nxt = lines[i + 1][0].strip(" :：·-()[]").strip()
+            if nxt:
+                return nxt
+    return None
+
+
 def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
     blob = "\n".join(t for t, _ in lines)
+
+    # 출장자 — "출장자" 라벨 뒤의 값에서 한국어 이름들만 추출
+    traveler = None
+    raw = _label_value(lines, _RX_LABEL_TRAVELER)
+    if raw:
+        names = _RX_KOR_NAMES.findall(raw)
+        # findall 은 그룹 결과만 — 전체 매치 다시 찾기
+        matches = list(re.finditer(r"[가-힣]{2,5}(?:\s*[,및과/\s]\s*[가-힣]{2,5})*", raw))
+        if matches:
+            traveler = matches[0].group(0).strip()
+
+    # 출장지 — "출장지" 라벨 뒤의 값 그대로 (괄호 안 기관명 포함)
+    place = _label_value(lines, _RX_LABEL_PLACE)
+    if place:
+        place = place[:80]  # 너무 길면 자름
 
     # 날짜: 가장 먼저 등장하는 유효 날짜
     trip_date: date | None = None
@@ -152,6 +225,8 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
     overall = min(0.95, avg_conf * (0.5 + 0.15 * field_hits))
 
     return TripExtraction(
+        traveler=traveler,
+        place=place,
         trip_date=trip_date,
         depart_time=depart_time,
         return_time=return_time,
