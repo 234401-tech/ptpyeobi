@@ -88,24 +88,6 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
           />
         </div>
         <div>
-          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">출장지</div>
-          <EditableField
-            value={current.place || ""}
-            onChange={(v) => setCurrentField({ place: v })}
-            placeholder="출장지 (방문기관)"
-          />
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">이동거리</div>
-          <EditableField
-            value={current.distance || ""}
-            onChange={(v) => setCurrentField({ distance: Number(v) || 0 })}
-            placeholder="거리 km"
-            suffix=" km"
-            type="number"
-          />
-        </div>
-        <div className="col-span-2">
           <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">
             동승자
             {state.companionNames.length > 0 && (
@@ -123,7 +105,25 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
                 .filter(Boolean);
               setCompanionNames(names);
             }}
-            placeholder="동승자 이름, 콤마로 구분"
+            placeholder="동승자1, 동승자2 (콤마로 구분)"
+          />
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">이동거리</div>
+          <EditableField
+            value={current.distance || ""}
+            onChange={(v) => setCurrentField({ distance: Number(v) || 0 })}
+            placeholder="거리 km"
+            suffix=" km"
+            type="number"
+          />
+        </div>
+        <div className="col-span-2">
+          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">출장지</div>
+          <EditableField
+            value={current.place || ""}
+            onChange={(v) => setCurrentField({ place: v })}
+            placeholder="출장지 (방문기관)"
           />
         </div>
       </div>
