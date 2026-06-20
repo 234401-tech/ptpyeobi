@@ -31,7 +31,7 @@ function Label({ children }) {
   );
 }
 
-export function CalculationCard({ current, setCurrentField, state, setState, calc }) {
+export function CalculationCard({ current, setCurrentField, state, setState, setCompanionNames, calc }) {
   const {
     mode,
     companions,
@@ -103,6 +103,27 @@ export function CalculationCard({ current, setCurrentField, state, setState, cal
             placeholder="거리 km"
             suffix=" km"
             type="number"
+          />
+        </div>
+        <div className="col-span-2">
+          <div className="text-[11px] uppercase tracking-[0.1em] text-slate-500 mb-1">
+            동승자
+            {state.companionNames.length > 0 && (
+              <span className="ml-1.5 text-amber-700 normal-case tracking-normal font-medium">
+                · {state.companionNames.length}명 (일비 50% 적용)
+              </span>
+            )}
+          </div>
+          <EditableField
+            value={state.companionNames.join(", ")}
+            onChange={(v) => {
+              const names = v
+                .split(/[,，]/)
+                .map((s) => s.trim())
+                .filter(Boolean);
+              setCompanionNames(names);
+            }}
+            placeholder="동승자 이름, 콤마로 구분 (예: 박진석, 김승모)"
           />
         </div>
       </div>

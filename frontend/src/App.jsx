@@ -32,6 +32,7 @@ export default function App() {
             setCurrentField={t.setCurrentField}
             state={t.state}
             setState={t.setState}
+            setCompanionNames={t.setCompanionNames}
             calc={t.calc}
           />
           <PayoutSummary
