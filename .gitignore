@@ -1,0 +1,22 @@
+# 데이터 (DB · 업로드 원본)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+backend/.env
+
+# Node
+node_modules/
+frontend/dist/
+npm-debug.log*
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

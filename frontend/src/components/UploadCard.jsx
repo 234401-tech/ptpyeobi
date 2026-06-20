@@ -1,0 +1,65 @@
+import { useRef } from "react";
+import { FileText, Sparkles, X, Upload } from "lucide-react";
+import { Card, CardHeader } from "./ui/Card.jsx";
+
+export function UploadCard({ filename, pages, onPick, onClear, busy }) {
+  const inputRef = useRef(null);
+
+  const onChange = (e) => {
+    const f = e.target.files?.[0];
+    if (f) onPick(f);
+    e.target.value = "";
+  };
+
+  return (
+    <Card>
+      <CardHeader num={1} title="증빙서류 업로드" />
+      <div className="px-5 pb-5">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          className="hidden"
+          onChange={onChange}
+        />
+        {filename ? (
+          <div
+            className="border-2 border-dashed border-indigo-100 bg-indigo-50/30 rounded-lg p-4 flex items-center gap-4"
+          >
+            <div className="w-11 h-11 bg-white border border-indigo-100 rounded-lg grid place-items-center text-indigo-600 flex-shrink-0">
+              <FileText size={19} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{filename}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                <span>{pages != null ? `${pages} 페이지` : "파일 분석 중"}</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-emerald-600 inline-flex items-center gap-1">
+                  <Sparkles size={11} /> {busy ? "AI 추출 중…" : "AI 추출 완료"}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="text-slate-400 hover:text-slate-700 p-1"
+              onClick={onClear}
+              aria-label="제거"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="w-full border-2 border-dashed border-indigo-100 bg-indigo-50/30 rounded-lg p-6 flex flex-col items-center justify-center gap-2 text-slate-500 hover:bg-indigo-50/60 hover:border-indigo-200 transition"
+          >
+            <Upload size={20} className="text-indigo-500" />
+            <div className="text-sm">증빙 PDF / 이미지를 선택하세요</div>
+            <div className="text-[11px] text-slate-400">PDF · JPG · PNG</div>
+          </button>
+        )}
+      </div>
+    </Card>
+  );
+}

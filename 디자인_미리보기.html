@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>여비뚝딱 · 여비정산 도구</title>
+<style>
+/* ============ 기본 ============ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1; --slate-400: #94a3b8; --slate-500: #64748b;
+  --slate-600: #475569; --slate-700: #334155; --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --indigo-50: #eef2ff; --indigo-100: #e0e7ff; --indigo-600: #4f46e5;
+  --indigo-700: #4338ca; --indigo-800: #3730a3;
+  --emerald-50: #ecfdf5; --emerald-100: #d1fae5; --emerald-500: #10b981;
+  --emerald-600: #059669; --emerald-700: #047857;
+  --amber-50: #fffbeb; --amber-100: #fef3c7; --amber-700: #b45309;
+  --sky-50: #f0f9ff; --sky-100: #e0f2fe; --sky-700: #0369a1;
+  --violet-50: #f5f3ff; --violet-100: #ede9fe; --violet-700: #6d28d9;
+}
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Apple SD Gothic Neo", "Noto Sans KR", "맑은 고딕", sans-serif;
+  color: var(--slate-900);
+  background: var(--slate-50);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input, select { font-family: inherit; font-size: inherit; }
+svg { display: inline-block; vertical-align: middle; }
+.tabular { font-variant-numeric: tabular-nums; }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+/* ============ 헤더 ============ */
+.header { background: white; border-bottom: 1px solid var(--slate-200); }
+.header-inner {
+  max-width: 1400px; margin: 0 auto; padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-logo {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--indigo-600), var(--indigo-800));
+  color: white; display: grid; place-items: center; font-weight: 700;
+}
+.brand-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--indigo-600); font-weight: 600; }
+.brand-title { font-size: 14px; font-weight: 600; line-height: 1.2; }
+.header-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--slate-500); flex-wrap: wrap; }
+.dot-pulse {
+  display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--emerald-500);
+  animation: pulse 2s infinite; margin-right: 6px;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ============ 레이아웃 ============ */
+.main {
+  max-width: 1400px; margin: 0 auto; padding: 24px;
+  display: grid; grid-template-columns: 1fr; gap: 20px;
+}
+@media (min-width: 1280px) {
+  .main { grid-template-columns: 7fr 5fr; align-items: start; }
+}
+.col-left { display: flex; flex-direction: column; gap: 16px; }
+
+/* ============ 카드 ============ */
+.card { background: white; border: 1px solid var(--slate-200); border-radius: 8px; overflow: hidden; }
+.card-header { padding: 14px 20px; border-bottom: 1px solid var(--slate-200); display: flex; align-items: center; gap: 8px; }
+.card-header-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--indigo-600); color: white;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700;
+}
+.card-header-title { font-size: 14px; font-weight: 600; }
+.card-header-right { margin-left: auto; }
+
+/* ============ 업로드 ============ */
+.upload-wrap { padding: 0 20px 20px; }
+.upload-box {
+  border: 2px dashed var(--indigo-100);
+  background: rgba(238, 242, 255, 0.3);
+  border-radius: 8px; padding: 16px;
+  display: flex; align-items: center; gap: 16px;
+}
+.upload-icon-wrap {
+  width: 44px; height: 44px; background: white;
+  border: 1px solid var(--indigo-100); border-radius: 8px;
+  display: grid; place-items: center; color: var(--indigo-600);
+}
+.upload-info { flex: 1; min-width: 0; }
+.upload-filename { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-meta { font-size: 11px; color: var(--slate-500); margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+.upload-meta-divider { color: var(--slate-300); }
+.upload-meta-ai { color: var(--emerald-600); display: inline-flex; align-items: center; gap: 4px; }
+.upload-close { color: var(--slate-400); padding: 4px; }
+.upload-close:hover { color: var(--slate-700); }
+
+/* ============ AI 배지 ============ */
+.ai-badge {
+  font-size: 10px; color: var(--emerald-700);
+  background: var(--emerald-50); border: 1px solid var(--emerald-100);
+  padding: 2px 6px; border-radius: 4px;
+}
+
+/* ============ 정보 그리드 ============ */
+.info-grid {
+  padding: 16px 20px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  column-gap: 24px; row-gap: 12px;
+  border-bottom: 1px solid var(--slate-100);
+}
+.info-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate-500); margin-bottom: 2px; }
+.info-value { font-size: 14px; color: var(--slate-800); }
+.label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--slate-500); font-weight: 600; }
+
+/* ============ 출장 유형 세그먼트 ============ */
+.mode-section { padding: 16px 20px; border-bottom: 1px solid var(--slate-100); }
+.mode-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 8px; margin-top: 8px;
+}
+@media (min-width: 640px) { .mode-grid { grid-template-columns: repeat(4, 1fr); } }
+.mode-card {
+  text-align: left; padding: 10px; border-radius: 8px;
+  border: 1px solid var(--slate-200); background: white;
+  color: var(--slate-700); transition: all 0.15s;
+}
+.mode-card:hover { border-color: var(--slate-400); }
+.mode-card.active { background: var(--indigo-600); border-color: var(--indigo-600); color: white; }
+.mode-icon { color: var(--slate-500); display: block; }
+.mode-card.active .mode-icon { color: white; }
+.mode-label { font-size: 12px; font-weight: 600; margin-top: 6px; }
+.mode-hint { font-size: 10px; color: var(--slate-500); margin-top: 2px; }
+.mode-card.active .mode-hint { color: rgba(255, 255, 255, 0.75); }
+
+.companions-row { margin-top: 12px; display: flex; align-items: center; gap: 12px; font-size: 12px; flex-wrap: wrap; }
+.companions-note {
+  font-size: 11px; color: var(--amber-700);
+  background: var(--amber-50); border: 1px solid var(--amber-100);
+  padding: 2px 8px; border-radius: 4px;
+}
+
+/* ============ 숙박 ============ */
+.lodge-row {
+  padding: 16px 20px; border-bottom: 1px solid var(--slate-100);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.region-select {
+  font-size: 12px; border: 1px solid var(--slate-200);
+  border-radius: 4px; padding: 4px 8px; background: white;
+}
+.region-select:disabled { background: var(--slate-50); color: var(--slate-400); }
+.lodge-note {
+  font-size: 11px; color: var(--indigo-700);
+  background: var(--indigo-50); border: 1px solid var(--indigo-100);
+  padding: 2px 8px; border-radius: 4px;
+}
+
+/* ============ 카운터 ============ */
+.counter {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--slate-300); border-radius: 4px;
+  overflow: hidden; background: white;
+}
+.counter button {
+  width: 24px; height: 24px;
+  display: grid; place-items: center; color: var(--slate-700); font-size: 15px; font-weight: 500;
+}
+.counter button:hover { background: var(--slate-100); }
+.counter button:disabled { color: var(--slate-300); cursor: not-allowed; background: white; }
+.counter-value {
+  width: 28px; text-align: center; font-size: 12px; font-weight: 600;
+  color: var(--slate-800); border-left: 1px solid var(--slate-200);
+  border-right: 1px solid var(--slate-200); font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+
+/* ============ 자동 산정 ============ */
+.calc-section { padding: 16px 20px; background: rgba(248, 250, 252, 0.4); }
+.calc-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.calc-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.calc-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--indigo-50); color: var(--indigo-600);
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.calc-row.zero .calc-icon { background: var(--slate-100); color: var(--slate-400); }
+.calc-main { flex: 1; min-width: 0; }
+.calc-label { font-size: 12px; font-weight: 500; color: var(--slate-700); display: flex; align-items: center; gap: 6px; }
+.calc-formula { font-size: 11px; color: var(--slate-500); margin-top: 2px; font-family: ui-monospace, monospace; }
+.calc-hint { font-size: 10px; color: var(--slate-400); margin-top: 2px; }
+.calc-amount { font-size: 14px; font-weight: 600; color: var(--slate-900); font-variant-numeric: tabular-nums; }
+.calc-row.zero .calc-amount { color: var(--slate-400); }
+.calc-amount-unit { font-size: 10px; color: var(--slate-400); margin-left: 1px; font-weight: 400; }
+.badge-amber {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-100); font-weight: 500;
+}
+.meals-formula {
+  font-size: 11px; color: var(--slate-500); margin-top: 4px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px;
+  font-family: ui-monospace, monospace;
+}
+.meals-arrow { color: var(--slate-300); }
+.meals-result { color: var(--slate-700); font-weight: 600; }
+
+/* ============ 합계 ============ */
+.total-section {
+  margin-top: 16px; padding-top: 16px;
+  border-top: 2px solid var(--slate-300);
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.total-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate-500); }
+.total-formula { font-size: 11px; color: var(--slate-500); margin-top: 2px; font-family: ui-monospace, monospace; }
+.total-amount { font-size: 36px; font-weight: 700; color: var(--indigo-700); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.total-amount-unit { font-size: 16px; color: var(--slate-500); font-weight: 400; margin-left: 4px; }
+
+/* ============ 미리보기 테이블 ============ */
+.preview-wrap { padding: 0 20px 20px; }
+.preview-table-box { border: 1px solid var(--slate-200); border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+.preview-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.preview-table thead { background: var(--slate-50); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate-500); }
+.preview-table th, .preview-table td { padding: 6px 8px; text-align: left; }
+.preview-table th { font-weight: 500; }
+.preview-table .text-right { text-align: right; }
+.preview-table tbody tr { background: rgba(238, 242, 255, 0.5); }
+.preview-table .truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============ 버튼 ============ */
+.btn-row { display: flex; gap: 8px; }
+.btn-secondary {
+  padding: 8px 12px; font-size: 14px;
+  border: 1px solid var(--slate-300); border-radius: 6px;
+  background: white; color: var(--slate-700);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-secondary:hover { background: var(--slate-50); }
+.btn-primary {
+  flex: 1; padding: 10px;
+  background: var(--indigo-600); color: white;
+  font-size: 14px; font-weight: 500; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-primary:hover { background: var(--indigo-700); }
+
+/* ============ 우측: 출장대장 ============ */
+.ledger-card { background: white; border: 1px solid var(--slate-200); border-radius: 8px; position: sticky; top: 16px; }
+.ledger-header { padding: 14px 20px; border-bottom: 1px solid var(--slate-200); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ledger-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.ledger-subtitle { font-size: 10px; color: var(--slate-400); font-weight: 400; }
+.ledger-meta { font-size: 11px; color: var(--slate-500); margin-top: 2px; }
+.ledger-meta b { color: var(--slate-700); font-weight: 600; }
+.ledger-export {
+  font-size: 12px; padding: 6px 10px;
+  border: 1px solid var(--slate-200); border-radius: 6px;
+  background: white; display: inline-flex; align-items: center; gap: 4px;
+}
+.ledger-export:hover { background: var(--slate-50); }
+.ledger-filter { padding: 8px 12px; border-bottom: 1px solid var(--slate-100); display: flex; align-items: center; gap: 8px; }
+.ledger-search { flex: 1; position: relative; }
+.ledger-search-input {
+  width: 100%; padding: 6px 8px 6px 28px;
+  font-size: 12px; border: 1px solid var(--slate-200);
+  border-radius: 4px; background: white;
+}
+.ledger-search-input:focus { outline: none; border-color: var(--indigo-600); }
+.ledger-search-icon { position: absolute; left: 8px; top: 7px; color: var(--slate-400); pointer-events: none; }
+.ledger-filter-btn {
+  font-size: 11px; padding: 6px 8px;
+  border: 1px solid var(--slate-200); border-radius: 4px;
+  display: inline-flex; align-items: center; gap: 4px; background: white;
+}
+.ledger-filter-btn:hover { background: var(--slate-50); }
+.ledger-scroll { max-height: 700px; overflow-y: auto; }
+.ledger-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ledger-table thead {
+  background: rgba(248, 250, 252, 0.95);
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--slate-500); position: sticky; top: 0;
+}
+.ledger-table th, .ledger-table td { padding: 8px; text-align: left; }
+.ledger-table th { font-weight: 500; }
+.ledger-table th.text-right, .ledger-table td.text-right { text-align: right; }
+.ledger-table th.text-center, .ledger-table td.text-center { text-align: center; }
+.ledger-table tbody tr { border-top: 1px solid var(--slate-100); transition: background 0.15s; }
+.ledger-table tbody tr:hover { background: rgba(248, 250, 252, 0.7); }
+.ledger-table tbody tr.just-added { background: var(--emerald-50); animation: highlight 2.4s; }
+@keyframes highlight {
+  0%, 30% { background: var(--emerald-50); }
+  100% { background: white; }
+}
+.ledger-no { color: var(--slate-400); font-family: monospace; font-size: 11px; font-variant-numeric: tabular-nums; width: 32px; }
+.ledger-title-cell { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-biz { font-size: 10px; color: var(--slate-400); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-traveler { white-space: nowrap; }
+.ledger-amount { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+/* ============ 영수증 편집기 (대중교통) ============ */
+.receipt-editor {
+  margin: 2px 0 8px 44px;
+  padding: 10px 12px;
+  border: 1px dashed var(--slate-200);
+  border-radius: 6px;
+  background: white;
+}
+.receipt-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 18px 26px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+.receipt-label {
+  font-size: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 5px 7px;
+  border-radius: 4px;
+  color: var(--slate-700);
+  width: 100%;
+  min-width: 0;
+}
+.receipt-label:hover { background: var(--slate-50); border-color: var(--slate-200); }
+.receipt-label:focus { background: white; border-color: var(--indigo-600); outline: none; }
+.receipt-amount {
+  font-size: 12px;
+  text-align: right;
+  border: 1px solid var(--slate-200);
+  border-radius: 4px;
+  padding: 5px 7px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--slate-900);
+  background: white;
+  width: 100%;
+  -moz-appearance: textfield;
+}
+.receipt-amount::-webkit-outer-spin-button,
+.receipt-amount::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.receipt-amount:focus { outline: none; border-color: var(--indigo-600); }
+.receipt-unit { font-size: 10px; color: var(--slate-500); }
+.receipt-delete {
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  color: var(--slate-400);
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+}
+.receipt-delete:hover { background: #fee2e2; color: #dc2626; }
+.receipt-add {
+  width: 100%; margin-top: 6px; padding: 6px 8px;
+  font-size: 11.5px; color: var(--indigo-600);
+  border: 1px dashed #c7d2fe;
+  border-radius: 6px; background: white; font-weight: 500;
+  transition: all 0.1s;
+}
+.receipt-add:hover { background: var(--indigo-50); border-color: var(--indigo-600); border-style: solid; }
+
+/* ============ Pill ============ */
+.pill { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+.pill-slate { background: var(--slate-100); color: var(--slate-700); }
+.pill-sky { background: var(--sky-50); color: var(--sky-700); border: 1px solid var(--sky-100); }
+.pill-violet { background: var(--violet-50); color: var(--violet-700); border: 1px solid var(--violet-100); }
+.pill-emerald { background: var(--emerald-50); color: var(--emerald-700); border: 1px solid var(--emerald-100); }
+.pill-amber { background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-100); }
+
+/* ============ 일자별 유가 카드 ============ */
+.right-col { display: flex; flex-direction: column; gap: 16px; }
+.fuel-card { background: white; border: 1px solid var(--slate-200); border-radius: 8px; overflow: hidden; }
+.fuel-header { padding: 14px 20px; border-bottom: 1px solid var(--slate-200); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fuel-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.fuel-title-tag { font-size: 9px; font-weight: 600; color: var(--amber-700); background: var(--amber-50); border: 1px solid var(--amber-100); padding: 2px 5px; border-radius: 3px; }
+.fuel-subtitle { font-size: 11px; color: var(--slate-500); margin-top: 2px; }
+.fuel-list-wrap { max-height: 360px; overflow-y: auto; }
+.fuel-row {
+  display: grid;
+  grid-template-columns: 78px 32px 1fr 60px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 20px 7px 17px;
+  font-size: 12px;
+  border-top: 1px solid var(--slate-100);
+  transition: background 0.1s;
+}
+.fuel-row:first-child { border-top: none; }
+.fuel-row:hover { background: var(--slate-50); }
+.fuel-row.current {
+  background: var(--indigo-50);
+  border-left: 3px solid var(--indigo-600);
+  padding-left: 17px;
+}
+.fuel-row.current .fuel-date { color: var(--indigo-700); font-weight: 600; }
+.fuel-date { color: var(--slate-700); font-family: ui-monospace, monospace; font-size: 11px; font-variant-numeric: tabular-nums; }
+.fuel-weekday {
+  font-size: 10px;
+  text-align: center;
+  padding: 1px 0;
+  background: var(--slate-100);
+  color: var(--slate-600);
+  border-radius: 4px;
+  font-weight: 500;
+}
+.fuel-weekday.sat { background: #dbeafe; color: #1d4ed8; }
+.fuel-weekday.sun { background: #fee2e2; color: #b91c1c; }
+.fuel-price { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--slate-900); }
+.fuel-price-unit { font-size: 10px; color: var(--slate-400); margin-left: 1px; font-weight: 400; }
+.fuel-row.current .fuel-price { color: var(--indigo-700); }
+.fuel-delta { font-size: 10.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.fuel-delta.up { color: #dc2626; }
+.fuel-delta.down { color: #2563eb; }
+.fuel-delta.flat { color: var(--slate-400); }
+.fuel-footer {
+  padding: 8px 16px;
+  background: var(--slate-50);
+  font-size: 10px;
+  color: var(--slate-500);
+  border-top: 1px solid var(--slate-200);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.fuel-current-pill {
+  font-size: 9px; font-weight: 600;
+  color: var(--indigo-700); background: white;
+  border: 1px solid #c7d2fe;
+  padding: 1px 5px; border-radius: 3px;
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+"use strict";
+
+/* ============ 아이콘 (인라인 SVG) ============ */
+const ICON = {
+  fileText: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
+  sparkles11: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>',
+  x16: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+  edit13: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+  plus15: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
+  fuel: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="15" y1="22" y2="22"/><line x1="4" x2="14" y1="9" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg>',
+  receipt: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>',
+  banknote: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>',
+  car: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>',
+  train: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5l1 1v1H8v-1l1-1z"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/></svg>',
+  hash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>',
+  chevronDown11: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  search12: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  download11: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+  bed: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>',
+  bus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>',
+  users: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+};
+function modeIcon(id) {
+  if (id === "self_drive")     return ICON.car;
+  if (id === "self_passenger") return ICON.users;
+  if (id === "company_car")    return ICON.bus;
+  if (id === "public_transit") return ICON.train;
+  return "";
+}
+
+/* ============ 규정 상수 ============ */
+const TRIP_MODES = [
+  { id: "self_drive",     label: "자가차량 운전", hint: "유류비 전액 · 일비 100%" },
+  { id: "self_passenger", label: "자가차량 동승", hint: "유류비 0 · 일비 50%" },
+  { id: "company_car",    label: "공용차량",      hint: "운임 0 · 일비 50%" },
+  { id: "public_transit", label: "대중교통",      hint: "운임 실비 · 일비 100%" },
+];
+const REGION_RATES = {
+  seoul: { label: "서울특별시", rate: 100000 },
+  metro: { label: "광역시",      rate: 80000 },
+  other: { label: "그 밖의 지역", rate: 70000 },
+};
+function mealAmount(n) {
+  const T = { 0: 0, 1: 8330, 2: 16670, 3: 25000, 4: 33330, 5: 41670 };
+  if (n in T) return T[n];
+  return 41670 + Math.round((n - 5) * 8333);
+}
+
+const CURRENT = {
+  file: "출장증빙_김승모_20260521.pdf",
+  traveler: "김승모", dept: "AI융합산업팀",
+  date: "2026.05.21", time: "14:00 ~ 17:00",
+  place: "대구(테이큰소프트)", distance: 139,
+  fuelPrice: 2063, fuelCostRaw: 23950,
+  tollSumRaw: 0, publicCostRaw: 0,
+  title: "(05.21/대구) 테이큰소프트 업무미팅",
+  biz: "재단운영비", fund: "통장", days: 1,
+};
+
+/* ============ 오파넷 유가 (mock) ============
+ * 실제 API 연동 시 이 배열을 fetch 결과로 교체.
+ * 응답 형태 가정:
+ *   GET /opinet/daily-avg?from=2026-05-14&to=2026-05-27&product=B027
+ *   → [{ date: "2026-05-27", weekday: "수", price: 2058 }, ...]
+ * delta는 클라이언트에서 직전일 대비로 계산.
+ */
+const FUEL_PRICES_RAW = [
+  { date: "2026.05.27", weekday: "수", price: 2058 },
+  { date: "2026.05.26", weekday: "화", price: 2061 },
+  { date: "2026.05.25", weekday: "월", price: 2063 },
+  { date: "2026.05.24", weekday: "일", price: 2062 },
+  { date: "2026.05.23", weekday: "토", price: 2062 },
+  { date: "2026.05.22", weekday: "금", price: 2063 },
+  { date: "2026.05.21", weekday: "목", price: 2063 },  // ← 출장일
+  { date: "2026.05.20", weekday: "수", price: 2061 },
+  { date: "2026.05.19", weekday: "화", price: 2060 },
+  { date: "2026.05.18", weekday: "월", price: 2058 },
+  { date: "2026.05.17", weekday: "일", price: 2059 },
+  { date: "2026.05.16", weekday: "토", price: 2059 },
+  { date: "2026.05.15", weekday: "금", price: 2062 },
+  { date: "2026.05.14", weekday: "목", price: 2063 },
+];
+const FUEL_PRICES = FUEL_PRICES_RAW.map((row, i) => ({
+  ...row,
+  delta: i === FUEL_PRICES_RAW.length - 1 ? 0 : row.price - FUEL_PRICES_RAW[i + 1].price,
+}));
+
+/* ============ 상태 ============ */
+let state = {
+  mode: "self_drive",
+  companions: 0,
+  mealsProvided: 0,
+  nights: 0,
+  region: "metro",
+  justAdded: null,
+  // 대중교통 영수증 (OCR 결과를 가정 — 사용자가 직접 편집 가능)
+  publicReceipts: [
+    { id: 1, label: "KTX 포항→서울 (04.09 어른 1매)", amount: 53600 },
+    { id: 2, label: "KTX 서울→포항 (04.09 어른 1매)", amount: 53900 },
+  ],
+  nextReceiptId: 3,
+  ledger: [
+    { no: 146, title: "(05.18/영주) 신재생 융복합 모니터링",  traveler: "신재천",  amount: 38120,  date: "2026-06-23", biz: "신재생(영주)",       fund: "RCMS" },
+    { no: 145, title: "(05.15/안동) CES2026 업무회의",         traveler: "박수영",  amount: 64210,  date: "2026-06-23", biz: "재단운영비",         fund: "통장" },
+    { no: 144, title: "(04.09/서울) NIA 서울사무소 회의",     traveler: "김승모",  amount: 107500, date: "2026-06-16", biz: "재단운영비",         fund: "통장" },
+    { no: 143, title: "(05.14/영덕) 종합지원센터 하자 점검",   traveler: "김민수",  amount: 26840,  date: "2026-06-16", biz: "재단운영비",         fund: "통장" },
+    { no: 142, title: "(05.12/경산) 디지털혁신 업무회의",      traveler: "박수영",  amount: 74620,  date: "2026-06-09", biz: "지역주도디지털혁신", fund: "e나라" },
+  ],
+};
+
+function compute() {
+  const isDriver     = state.mode === "self_drive";
+  const isPassenger  = state.mode === "self_passenger";
+  const isCompanyCar = state.mode === "company_car";
+  const isPublic     = state.mode === "public_transit";
+  const halfPerDiem  = isPassenger || isCompanyCar;
+
+  const fuelCost   = isDriver ? CURRENT.fuelCostRaw   : 0;
+  const tollSum    = isDriver ? CURRENT.tollSumRaw    : 0;
+  const publicCost = isPublic ? state.publicReceipts.reduce((s, r) => s + (r.amount || 0), 0) : 0;
+  const billedMeals = Math.max(0, CURRENT.days * 3 - state.mealsProvided);
+  const mealCost = mealAmount(billedMeals);
+  const perDiemFull = 25000 * CURRENT.days;
+  const perDiem = halfPerDiem ? Math.round(perDiemFull / 2) : perDiemFull;
+  const regionInfo = REGION_RATES[state.region];
+  const lodgeCost = state.nights * regionInfo.rate;
+  const total = fuelCost + tollSum + publicCost + mealCost + perDiem + lodgeCost;
+
+  return { fuelCost, tollSum, publicCost, mealCost, perDiem, lodgeCost, total,
+           billedMeals, regionInfo, isDriver, isPassenger, isCompanyCar, isPublic, halfPerDiem };
+}
+
+function fmt(n) { return n.toLocaleString(); }
+function setState(patch) { Object.assign(state, patch); render(); }
+
+function addToLedger() {
+  const c = compute();
+  const newRow = {
+    no: state.ledger[0].no + 1,
+    title: CURRENT.title, traveler: CURRENT.traveler,
+    amount: c.total, date: "2026-06-23",
+    biz: CURRENT.biz, fund: CURRENT.fund,
+  };
+  state.ledger = [newRow, ...state.ledger];
+  state.justAdded = newRow.no;
+  render();
+  setTimeout(() => { state.justAdded = null; render(); }, 2400);
+}
+
+/* ============ 렌더 ============ */
+let _focusHint = null;
+function captureFocus() {
+  const ae = document.activeElement;
+  if (ae && (ae.classList.contains("receipt-amount") || ae.classList.contains("receipt-label"))) {
+    const row = ae.closest(".receipt-row");
+    _focusHint = {
+      rid: row?.dataset.rid,
+      cls: ae.classList.contains("receipt-amount") ? "receipt-amount" : "receipt-label",
+      caret: ae.type === "text" ? ae.selectionStart : null,
+    };
+  } else { _focusHint = null; }
+}
+function restoreFocus() {
+  if (!_focusHint) return;
+  const sel = `.receipt-row[data-rid="${_focusHint.rid}"] .${_focusHint.cls}`;
+  const el = document.querySelector(sel);
+  if (el) {
+    el.focus();
+    if (_focusHint.caret != null && el.type === "text") {
+      try { el.setSelectionRange(_focusHint.caret, _focusHint.caret); } catch (_) {}
+    }
+  }
+  _focusHint = null;
+}
+
+function render() {
+  captureFocus();
+  const c = compute();
+  const halfPerDiemReason = c.isPassenger ? "동승" : "공용차량";
+  const ledgerMonthSum = state.ledger.reduce((a, b) => a + b.amount, 0);
+  const ledgerTotal = state.ledger.length + 142;
+
+  document.getElementById("app").innerHTML = `
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-logo">뚝</div>
+        <div>
+          <div class="brand-tag">여비뚝딱</div>
+          <div class="brand-title">여비정산 도구</div>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span><span class="dot-pulse"></span>오파넷 유가 동기화 · 오늘 09:02</span>
+        <span>·</span>
+        <span>여비지급규정 v2025.06.24</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="col-left">
+      <!-- 1. 업로드 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-num">1</div>
+          <div class="card-header-title">증빙서류 업로드</div>
+        </div>
+        <div class="upload-wrap">
+          <div class="upload-box">
+            <div class="upload-icon-wrap">${ICON.fileText}</div>
+            <div class="upload-info">
+              <div class="upload-filename">${CURRENT.file}</div>
+              <div class="upload-meta">
+                <span>3 페이지 · 1.2 MB</span>
+                <span class="upload-meta-divider">|</span>
+                <span class="upload-meta-ai">${ICON.sparkles11} AI 추출 완료</span>
+              </div>
+            </div>
+            <button class="upload-close" aria-label="제거">${ICON.x16}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 자동 추출 · 계산 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-num">2</div>
+          <div class="card-header-title">자동 추출 · 자동 계산</div>
+          <div class="card-header-right">
+            <span class="ai-badge">AI 신뢰도 96%</span>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div><div class="info-label">출장자</div><div class="info-value">${CURRENT.traveler} (${CURRENT.dept})</div></div>
+          <div><div class="info-label">출장일시</div><div class="info-value">${CURRENT.date} ${CURRENT.time}</div></div>
+          <div><div class="info-label">출장지</div><div class="info-value">${CURRENT.place}</div></div>
+          <div><div class="info-label">이동거리</div><div class="info-value">${CURRENT.distance} km · 카카오맵 자동</div></div>
+        </div>
+
+        <!-- 출장 유형 -->
+        <div class="mode-section">
+          <div class="label">출장 유형</div>
+          <div class="mode-grid">
+            ${TRIP_MODES.map(m => `
+              <button class="mode-card ${state.mode === m.id ? "active" : ""}" data-action="set-mode" data-mode="${m.id}">
+                <span class="mode-icon">${modeIcon(m.id)}</span>
+                <div class="mode-label">${m.label}</div>
+                <div class="mode-hint">${m.hint}</div>
+              </button>
+            `).join("")}
+          </div>
+          ${(c.isDriver || c.isPassenger) ? `
+            <div class="companions-row">
+              <span class="label">동승자</span>
+              ${counterHtml("companions", state.companions, 0, 9)}
+              <span style="color: var(--slate-500)">명</span>
+              ${state.companions > 0 ? `<span class="companions-note">ⓘ 동승자(${state.companions}명)는 각자 '자가차량 동승'으로 별도 정산</span>` : ""}
+            </div>
+          ` : ""}
+        </div>
+
+        <!-- 숙박 -->
+        <div class="lodge-row">
+          <span class="label">숙박</span>
+          ${counterHtml("nights", state.nights, 0, 30)}
+          <span style="font-size: 12px; color: var(--slate-500)">박</span>
+          <select id="region-select" class="region-select" ${state.nights === 0 ? "disabled" : ""}>
+            ${Object.entries(REGION_RATES).map(([k, v]) =>
+              `<option value="${k}" ${state.region === k ? "selected" : ""}>${v.label} · ${fmt(v.rate)}원/박</option>`
+            ).join("")}
+          </select>
+          ${state.nights > 0 ? `<span class="lodge-note">영수증 실비 첨부 시 상한액 내 실비 적용</span>` : ""}
+        </div>
+
+        <!-- 자동 산정 -->
+        <div class="calc-section">
+          <div class="label">자동 산정</div>
+          <div class="calc-list">
+            ${calcRowHtml({
+              icon: ICON.fuel, label: "유류비",
+              formula: c.isDriver
+                ? `${CURRENT.distance} km × ${fmt(CURRENT.fuelPrice)}원/L ÷ 11.97`
+                : c.isPassenger ? "자가차량 동승 → 미지급 (운전자에게만 지급)"
+                : c.isCompanyCar ? "공용차량 → 자동차운임 미지급"
+                : "대중교통 → 운임은 아래 '대중교통비' 라인에서 지급",
+              hint: c.isDriver ? "오파넷 보통휘발유 평균가 · 10원 절사" : null,
+              amount: c.fuelCost, zero: !c.isDriver,
+            })}
+            ${calcRowHtml({
+              icon: ICON.hash, label: "톨게이트",
+              formula: c.isDriver
+                ? (c.tollSum === 0 ? "통행료 무료 구간" : "하이패스 영수증 합계")
+                : "해당 없음",
+              amount: c.tollSum, zero: true,
+            })}
+            ${c.isPublic ? `
+              <div class="calc-row ${c.publicCost === 0 ? "zero" : ""}">
+                <div class="calc-icon">${ICON.train}</div>
+                <div class="calc-main">
+                  <div class="calc-label">대중교통비</div>
+                  <div class="calc-formula">영수증 ${state.publicReceipts.length}건 · 실비 합계</div>
+                  <div class="calc-hint">✏️ OCR이 잘못 인식한 경우 아래에서 바로 수정하세요</div>
+                </div>
+                <div class="calc-amount">${fmt(c.publicCost)}<span class="calc-amount-unit">원</span></div>
+              </div>
+              <div class="receipt-editor">
+                ${state.publicReceipts.map(r => `
+                  <div class="receipt-row" data-rid="${r.id}">
+                    <input type="text" class="receipt-label" value="${r.label.replace(/"/g, "&quot;")}" placeholder="영수증 설명 (예: KTX 포항→서울)" />
+                    <input type="number" class="receipt-amount" value="${r.amount}" min="0" step="100" />
+                    <span class="receipt-unit">원</span>
+                    <button class="receipt-delete" title="삭제">×</button>
+                  </div>
+                `).join("")}
+                <button class="receipt-add">+ 영수증 추가</button>
+              </div>
+            ` : ""}
+
+            <!-- 식비 (인터랙티브) -->
+            <div class="calc-row ${c.mealCost === 0 ? "zero" : ""}">
+              <div class="calc-icon">${ICON.receipt}</div>
+              <div class="calc-main">
+                <div class="calc-label">식비</div>
+                <div class="meals-formula">
+                  <span>기본 ${CURRENT.days * 3}식</span>
+                  <span>−</span>
+                  <span>제공받음</span>
+                  ${counterHtml("meals", state.mealsProvided, 0, CURRENT.days * 3)}
+                  <span>식</span>
+                  <span class="meals-arrow">→</span>
+                  <span class="meals-result">${c.billedMeals}식 지급</span>
+                </div>
+              </div>
+              <div class="calc-amount">${fmt(c.mealCost)}<span class="calc-amount-unit">원</span></div>
+            </div>
+
+            ${calcRowHtml({
+              icon: ICON.banknote, label: "일비",
+              formula: c.halfPerDiem
+                ? `25,000원 × ${CURRENT.days}일 × 50% (${halfPerDiemReason})`
+                : `25,000원 × ${CURRENT.days}일`,
+              amount: c.perDiem, badge: c.halfPerDiem ? "50% 적용" : null,
+            })}
+
+            ${calcRowHtml({
+              icon: ICON.bed, label: "숙박비",
+              formula: state.nights > 0
+                ? `${c.regionInfo.label} ${fmt(c.regionInfo.rate)}원 × ${state.nights}박`
+                : "0박 · 미지급",
+              amount: c.lodgeCost, zero: c.lodgeCost === 0,
+            })}
+          </div>
+
+          <div class="total-section">
+            <div>
+              <div class="total-label">정산 합계</div>
+              <div class="total-formula">${[
+                c.fuelCost   ? `유류 ${fmt(c.fuelCost)}`     : null,
+                c.tollSum    ? `톨게이트 ${fmt(c.tollSum)}`   : null,
+                c.publicCost ? `교통 ${fmt(c.publicCost)}`    : null,
+                c.mealCost   ? `식비 ${fmt(c.mealCost)}`      : null,
+                c.perDiem    ? `일비 ${fmt(c.perDiem)}`       : null,
+                c.lodgeCost  ? `숙박 ${fmt(c.lodgeCost)}`     : null,
+              ].filter(Boolean).join(" + ")}</div>
+            </div>
+            <div class="total-amount">${fmt(c.total)}<span class="total-amount-unit">원</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 대장 추가 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-num">3</div>
+          <div class="card-header-title">출장대장에 추가</div>
+        </div>
+        <div class="preview-wrap">
+          <div class="preview-table-box">
+            <table class="preview-table">
+              <thead>
+                <tr>
+                  <th>제목</th><th>출장자</th><th class="text-right">출장비</th>
+                  <th>자금집행일</th><th>사업비/시스템</th><th>예산명</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="truncate">${CURRENT.title}</td>
+                  <td>${CURRENT.traveler}</td>
+                  <td class="text-right tabular" style="font-weight:600">${fmt(c.total)}</td>
+                  <td class="mono" style="font-size:11px">2026-06-23</td>
+                  <td>${CURRENT.fund}</td>
+                  <td>${CURRENT.biz}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="btn-row">
+            <button class="btn-secondary">${ICON.edit13} 수정</button>
+            <button class="btn-primary" data-action="add-ledger">${ICON.plus15} 출장대장에 추가하고 다음 건으로</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 우측: 일자별 유가 + 출장대장 -->
+    <aside class="right-col">
+      <div class="fuel-card">
+        <div class="fuel-header">
+          <div>
+            <div class="fuel-title">
+              오파넷 일자별 유가
+              <span class="fuel-title-tag">MOCK</span>
+            </div>
+            <div class="fuel-subtitle">보통휘발유 평균가 · 최근 14일</div>
+          </div>
+          <button class="ledger-export" disabled style="opacity:0.6">${ICON.download11} 새로고침</button>
+        </div>
+        <div class="fuel-list-wrap">
+          ${FUEL_PRICES.map(p => {
+            const isCurrent = p.date === CURRENT.date;
+            const wkCls = p.weekday === "토" ? "sat" : p.weekday === "일" ? "sun" : "";
+            const deltaCls = p.delta > 0 ? "up" : p.delta < 0 ? "down" : "flat";
+            const deltaText = p.delta > 0 ? `▲ ${p.delta}` : p.delta < 0 ? `▼ ${Math.abs(p.delta)}` : "—";
+            return `
+              <div class="fuel-row ${isCurrent ? "current" : ""}">
+                <span class="fuel-date">${p.date}</span>
+                <span class="fuel-weekday ${wkCls}">${p.weekday}</span>
+                <span class="fuel-price">${fmt(p.price)}<span class="fuel-price-unit">원/L</span></span>
+                <span class="fuel-delta ${deltaCls}">${deltaText}</span>
+              </div>`;
+          }).join("")}
+        </div>
+        <div class="fuel-footer">
+          <span>출장일 <b style="color:var(--indigo-700)">${CURRENT.date}</b> 자동 적용 <span class="fuel-current-pill">${fmt(CURRENT.fuelPrice)}원/L</span></span>
+          <span>API 연동 예정</span>
+        </div>
+      </div>
+
+      <div class="ledger-card">
+        <div class="ledger-header">
+          <div>
+            <h2 class="ledger-title">
+              출장대장
+              <span class="ledger-subtitle">2026년 국내 출장</span>
+            </h2>
+            <div class="ledger-meta">
+              누계 <b>${ledgerTotal}건</b> · 이달 합계 <b class="tabular">${fmt(ledgerMonthSum)}원</b>
+            </div>
+          </div>
+          <button class="ledger-export">${ICON.download11} XLSX</button>
+        </div>
+        <div class="ledger-filter">
+          <div class="ledger-search">
+            <span class="ledger-search-icon">${ICON.search12}</span>
+            <input class="ledger-search-input" placeholder="제목 · 출장자 검색" />
+          </div>
+          <button class="ledger-filter-btn">전체 ${ICON.chevronDown11}</button>
+        </div>
+        <div class="ledger-scroll">
+          <table class="ledger-table">
+            <thead>
+              <tr>
+                <th style="width:32px">No.</th>
+                <th>제목</th><th>출장자</th>
+                <th class="text-right">출장비</th>
+                <th class="text-center">시스템</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${state.ledger.map(r => `
+                <tr class="${state.justAdded === r.no ? "just-added" : ""}">
+                  <td class="ledger-no">${r.no}</td>
+                  <td>
+                    <div class="ledger-title-cell">${r.title}</div>
+                    <div class="ledger-biz">${r.biz}</div>
+                  </td>
+                  <td class="ledger-traveler">${r.traveler}</td>
+                  <td class="text-right ledger-amount">${fmt(r.amount)}</td>
+                  <td class="text-center">${pillHtml(r.fund)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </aside>
+  </main>
+  `;
+  bindEvents();
+}
+
+/* ============ HTML 헬퍼 ============ */
+function counterHtml(key, value, min, max) {
+  return `
+    <div class="counter">
+      <button data-action="dec" data-counter="${key}" ${value <= min ? "disabled" : ""}>−</button>
+      <span class="counter-value">${value}</span>
+      <button data-action="inc" data-counter="${key}" ${value >= max ? "disabled" : ""}>+</button>
+    </div>`;
+}
+function calcRowHtml({ icon, label, formula, hint, amount, zero, badge }) {
+  return `
+    <div class="calc-row ${zero ? "zero" : ""}">
+      <div class="calc-icon">${icon}</div>
+      <div class="calc-main">
+        <div class="calc-label">
+          ${label}
+          ${badge ? `<span class="badge-amber">${badge}</span>` : ""}
+        </div>
+        <div class="calc-formula">${formula}</div>
+        ${hint ? `<div class="calc-hint">${hint}</div>` : ""}
+      </div>
+      <div class="calc-amount">${fmt(amount)}<span class="calc-amount-unit">원</span></div>
+    </div>`;
+}
+function pillHtml(fund) {
+  const cls = { "통장": "pill-slate", "e나라": "pill-sky", "RCMS": "pill-violet", "보탬e": "pill-emerald", "지방비": "pill-amber" }[fund] || "pill-slate";
+  return `<span class="pill ${cls}">${fund}</span>`;
+}
+
+/* ============ 이벤트 바인딩 ============ */
+function bindEvents() {
+  document.querySelectorAll('[data-action="set-mode"]').forEach(b => {
+    b.addEventListener("click", () => setState({ mode: b.dataset.mode }));
+  });
+  document.querySelectorAll('[data-action="inc"], [data-action="dec"]').forEach(b => {
+    b.addEventListener("click", () => {
+      const key = b.dataset.counter;
+      const delta = b.dataset.action === "inc" ? 1 : -1;
+      const max = key === "companions" ? 9 : key === "nights" ? 30 : key === "meals" ? CURRENT.days * 3 : 99;
+      const stateKey = key === "meals" ? "mealsProvided" : key;
+      const next = Math.max(0, Math.min(max, state[stateKey] + delta));
+      setState({ [stateKey]: next });
+    });
+  });
+  const regionSel = document.getElementById("region-select");
+  if (regionSel) regionSel.addEventListener("change", e => setState({ region: e.target.value }));
+
+  const addBtn = document.querySelector('[data-action="add-ledger"]');
+  if (addBtn) addBtn.addEventListener("click", addToLedger);
+
+  // 영수증 편집 ──────────────────────────────────
+  document.querySelectorAll(".receipt-amount").forEach(input => {
+    input.addEventListener("input", () => {
+      const rid = parseInt(input.closest(".receipt-row").dataset.rid);
+      const r = state.publicReceipts.find(x => x.id === rid);
+      if (r) { r.amount = parseInt(input.value) || 0; render(); }
+    });
+  });
+  document.querySelectorAll(".receipt-label").forEach(input => {
+    input.addEventListener("input", () => {
+      const rid = parseInt(input.closest(".receipt-row").dataset.rid);
+      const r = state.publicReceipts.find(x => x.id === rid);
+      if (r) { r.label = input.value; render(); }
+    });
+  });
+  document.querySelectorAll(".receipt-delete").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const rid = parseInt(btn.closest(".receipt-row").dataset.rid);
+      state.publicReceipts = state.publicReceipts.filter(r => r.id !== rid);
+      render();
+    });
+  });
+  const receiptAddBtn = document.querySelector(".receipt-add");
+  if (receiptAddBtn) {
+    receiptAddBtn.addEventListener("click", () => {
+      state.publicReceipts.push({ id: state.nextReceiptId++, label: "", amount: 0 });
+      render();
+    });
+  }
+
+  restoreFocus();
+}
+
+/* 초기 렌더 */
+render();
+</script>
+</body>
+</html>
