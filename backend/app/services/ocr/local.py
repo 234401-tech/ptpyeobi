@@ -23,8 +23,10 @@ _RX_DATE = re.compile(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})")
 _RX_TIME = re.compile(r"(\d{1,2}):(\d{2})")
 _RX_DIST = re.compile(r"(\d+(?:\.\d+)?)\s*km", re.IGNORECASE)
 _RX_AMOUNT = re.compile(r"([\d,]{3,})\s*원")
-# 정상 천단위 콤마만 (앞뒤로 숫자/콤마가 더 붙어 있으면 매칭 안 함 → 234,506002638 같은 잡음 배제)
-_RX_AMOUNT_KOMMA = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+)(?![\d,])")
+# 정상 천단위 구분자 (콤마 또는 점 — OCR이 콤마를 점으로 잘못 읽는 케이스 보정).
+# 앞뒤로 숫자/콤마/점이 더 붙어 있으면 매칭 안 함 → 234,506002638 같은 잡음 배제.
+# 날짜 (2026.04.09) 는 3자리 그룹이 아니라 매칭 안 됨.
+_RX_AMOUNT_KOMMA = re.compile(r"(?<![\d,.])(\d{1,3}(?:[,.]\d{3})+)(?![\d,.])")
 # 사업자번호 (xxx-xx-xxxxx) / 카드번호 마스킹 패턴 — 영수증 금액 아닌 메타 정보
 _RX_BIZ_NO = re.compile(r"\d{3}-\d{2}-\d{5}")
 _RX_CARD_MASK = re.compile(r"\d{4}-?\*+")
@@ -183,6 +185,7 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
     # 영수증 후보: "원" 표기가 있는 줄 우선, 없으면 천단위 콤마 숫자.
     # 거리(km)·TEL·사업자번호·카드 마스킹 줄은 제외.
     receipts: list[ReceiptExtraction] = []
+    seen_amounts: dict[int, float] = {}  # 같은 금액은 가장 신뢰도 높은 것만 유지
     seen_pairs: set[tuple[int, str]] = set()  # 동일 라인의 같은 금액 중복 방지
     for t, conf in lines:
         low = t.lower()
@@ -199,7 +202,7 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
 
         for raw, has_won in matches:
             try:
-                amt = int(raw.replace(",", ""))
+                amt = int(raw.replace(",", "").replace(".", ""))
             except ValueError:
                 continue
             if not (500 <= amt <= 1_000_000):
@@ -208,6 +211,11 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
             if key in seen_pairs:
                 continue
             seen_pairs.add(key)
+            # 같은 금액이 다른 라인에 반복되면 (예: KTX 영수증의 결제금액 = 총영수금액)
+            # 첫 매치만 유지 (1장 = 1건)
+            if amt in seen_amounts:
+                continue
+            seen_amounts[amt] = conf
             label = _RX_AMOUNT.sub("", t).strip(" :·-") if has_won else t.strip()
             label = re.sub(r"\d[\d,]*", "", label).strip(" :·-()[]")[:60]
             # 의미 있는 문자가 3자 미만이면 "영수증"으로 폴백 (한자/기호만 남는 경우)
