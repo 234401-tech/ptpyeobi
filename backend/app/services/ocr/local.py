@@ -232,6 +232,11 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
     field_hits = sum(bool(x) for x in (trip_date, distance_km, depart_time))
     overall = min(0.95, avg_conf * (0.5 + 0.15 * field_hits))
 
+    # 모드 자동 추정: 영수증이 있고 거리가 없으면 대중교통 (KTX/버스 등)
+    mode_suggested = None
+    if receipts and not distance_km:
+        mode_suggested = "public_transit"
+
     return TripExtraction(
         traveler=traveler,
         place=place,
@@ -239,6 +244,7 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
         depart_time=depart_time,
         return_time=return_time,
         distance_km=distance_km,
+        mode_suggested=mode_suggested,
         receipts=receipts,
         confidence=overall,
     )
