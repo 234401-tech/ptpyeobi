@@ -123,7 +123,7 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
                 .filter(Boolean);
               setCompanionNames(names);
             }}
-            placeholder="동승자 이름, 콤마로 구분 (예: 박진석, 김승모)"
+            placeholder="동승자 이름, 콤마로 구분"
           />
         </div>
       </div>
