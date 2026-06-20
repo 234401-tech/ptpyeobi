@@ -74,21 +74,39 @@ export function LedgerCard({
             />
           </div>
 
-          {/* 사업명 + 자동 매핑된 시스템 pill */}
+          {/* 사업명 — datalist 로 자동완성 + 자유 입력 */}
           <div className="mb-2 flex items-center gap-2 text-xs">
-            <span className="text-[10px] uppercase tracking-[0.1em] text-slate-500">사업명</span>
-            <select
+            <span className="text-[10px] uppercase tracking-[0.1em] text-slate-500 w-12 flex-shrink-0">사업명</span>
+            <input
+              list="biz-options"
               value={current.biz || ""}
               onChange={(e) => {
                 const biz = e.target.value;
-                setCurrentField({ biz, fund: FUND_SYSTEM_MAP[biz] || "" });
+                const mapped = FUND_SYSTEM_MAP[biz];
+                setCurrentField(mapped ? { biz, fund: mapped } : { biz });
               }}
+              placeholder="사업명 입력 또는 선택"
+              className="flex-1 min-w-0 text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-500"
+            />
+            <datalist id="biz-options">
+              {Object.keys(FUND_SYSTEM_MAP).map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
+          </div>
+
+          {/* 시스템 — 사업명 자동 매핑 또는 직접 선택 */}
+          <div className="mb-2 flex items-center gap-2 text-xs">
+            <span className="text-[10px] uppercase tracking-[0.1em] text-slate-500 w-12 flex-shrink-0">시스템</span>
+            <select
+              value={current.fund || ""}
+              onChange={(e) => setCurrentField({ fund: e.target.value })}
               className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-500"
             >
               <option value="">선택…</option>
-              {Object.keys(FUND_SYSTEM_MAP).map((b) => (
-                <option key={b} value={b}>
-                  {b}
+              {["통장", "e나라", "RCMS", "보탬e", "지방비"].map((s) => (
+                <option key={s} value={s}>
+                  {s}
                 </option>
               ))}
             </select>
