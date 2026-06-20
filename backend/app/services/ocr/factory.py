@@ -26,4 +26,8 @@ def get_ocr() -> OCRAdapter:
         from .local import LocalOCR
 
         return LocalOCR()
+    if name == "got":
+        from .got import GotOCR
+
+        return GotOCR()
     raise RuntimeError(f"지원하지 않는 OCR_PROVIDER: {name}")

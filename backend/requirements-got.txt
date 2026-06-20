@@ -1,0 +1,16 @@
+# GOT-OCR 2.0 어댑터 전용 의존성 (회사 서버 GPU 환경에서만 설치)
+# 사전 조건: NVIDIA 드라이버 + CUDA 11.8/12.x + PyTorch CUDA
+#
+# PyTorch CUDA 는 환경에 맞춰 별도로 먼저 설치:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# (CUDA 11.8 면 cu118)
+
+transformers>=4.37
+accelerate>=0.26
+tiktoken>=0.5
+sentencepiece>=0.1.99
+einops>=0.7
+
+# 다음은 선택 (수식/표/악보 출력 시 필요할 수 있음)
+# verovio>=4.0
+# python-Levenshtein
