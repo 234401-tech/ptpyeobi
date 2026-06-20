@@ -30,4 +30,8 @@ def get_ocr() -> OCRAdapter:
         from .got import GotOCR
 
         return GotOCR()
+    if name == "surya":
+        from .surya import SuryaOCR
+
+        return SuryaOCR()
     raise RuntimeError(f"지원하지 않는 OCR_PROVIDER: {name}")

@@ -1,0 +1,13 @@
+# Surya OCR 어댑터 전용 의존성
+#
+# 라이선스 주의
+#   코드:       GPL-3.0
+#   모델 가중치: CC-BY-NC-SA 4.0 (비영리 사용)
+#   상업적 사용은 Surya Pro 라이선스 필요 (datalab.to)
+#
+# PyTorch 는 환경에 맞춰 별도 설치:
+#   CPU:     pip install torch
+#   CUDA 12: pip install torch --index-url https://download.pytorch.org/whl/cu121
+#   CUDA 11: pip install torch --index-url https://download.pytorch.org/whl/cu118
+
+surya-ocr>=0.6
