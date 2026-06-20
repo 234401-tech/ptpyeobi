@@ -56,6 +56,7 @@ export default function App() {
             query={t.query}
             onQuery={t.setQuery}
             current={t.current}
+            setCurrentField={t.setCurrentField}
             pendingTotal={t.calc.total}
             onAdd={t.addToLedger}
             busy={t.busy.add}

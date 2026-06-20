@@ -1,6 +1,7 @@
 import { Search, ChevronDown, Download, Plus } from "lucide-react";
 import { Pill } from "./ui/Pill.jsx";
-import { fmt } from "../lib/constants.js";
+import { EditableField } from "./ui/EditableField.jsx";
+import { fmt, FUND_SYSTEM_MAP } from "../lib/constants.js";
 import { api } from "../lib/api.js";
 
 export function LedgerCard({
@@ -9,6 +10,7 @@ export function LedgerCard({
   query,
   onQuery,
   current,
+  setCurrentField,
   pendingTotal,
   onAdd,
   busy,
@@ -58,23 +60,61 @@ export function LedgerCard({
       </div>
       {current && (
         <div className="px-4 py-3 border-b border-slate-100 bg-indigo-50/40">
-          <div className="text-[11px] uppercase tracking-[0.1em] text-indigo-700 font-semibold mb-1.5">
+          <div className="text-[11px] uppercase tracking-[0.1em] text-indigo-700 font-semibold mb-2">
             추가 예정
           </div>
-          <div className="flex items-center gap-3 text-xs mb-2.5">
-            <div className="flex-1 min-w-0">
-              <div className="truncate font-medium text-slate-800">
-                {current.title || <span className="text-slate-400">제목 미입력</span>}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">
-                {current.traveler || "—"} · {current.biz || "—"} · {current.fund || "—"}
-              </div>
+
+          {/* 제목 */}
+          <div className="mb-2">
+            <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">제목</div>
+            <EditableField
+              value={current.title || ""}
+              onChange={(v) => setCurrentField({ title: v })}
+              placeholder="예: (04.09/서울) NIA 서울사무소 회의"
+            />
+          </div>
+
+          {/* 사업명 + 자동 매핑된 시스템 pill */}
+          <div className="mb-2 flex items-center gap-2 text-xs">
+            <span className="text-[10px] uppercase tracking-[0.1em] text-slate-500">사업명</span>
+            <select
+              value={current.biz || ""}
+              onChange={(e) => {
+                const biz = e.target.value;
+                setCurrentField({ biz, fund: FUND_SYSTEM_MAP[biz] || "" });
+              }}
+              className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-500"
+            >
+              <option value="">선택…</option>
+              {Object.keys(FUND_SYSTEM_MAP).map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+            {current.fund && <Pill fund={current.fund} />}
+          </div>
+
+          {/* 출장자 + 합계 */}
+          <div className="flex items-end justify-between gap-2 mb-2.5">
+            <div className="text-xs text-slate-600">
+              {current.traveler ? (
+                <>
+                  <span className="text-[10px] text-slate-500 mr-1">출장자</span>
+                  {current.traveler}
+                </>
+              ) : (
+                <span className="text-slate-400">출장자 미입력</span>
+              )}
             </div>
             <div className="text-right">
-              <div className="tabular font-bold text-indigo-700">{fmt(pendingTotal)}</div>
+              <div className="tabular font-bold text-indigo-700 text-base">
+                {fmt(pendingTotal)}
+              </div>
               <div className="text-[10px] text-slate-400">원</div>
             </div>
           </div>
+
           <button
             type="button"
             onClick={onAdd}

@@ -24,6 +24,15 @@ export function mealAmount(n) {
   return 41670 + Math.round((n - 5) * 8333);
 }
 
+// 사업명 → 회계시스템 자동 매핑 (backend calculator.py 와 동기화)
+export const FUND_SYSTEM_MAP = {
+  "재단운영비": "통장",
+  "초거대AI 클라우드팜": "e나라",
+  "신재생 융복합": "RCMS",
+  "동해안방사능": "보탬e",
+  "에너지 행사지원": "지방비",
+};
+
 export const FUND_PILL_CLASS = {
   "통장": "bg-slate-100 text-slate-700",
   "e나라": "bg-sky-50 text-sky-700 border border-sky-100",
