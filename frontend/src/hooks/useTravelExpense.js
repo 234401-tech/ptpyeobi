@@ -16,7 +16,8 @@ function recentFuelRange() {
 export function useTravelExpense() {
   const [current, setCurrent] = useState(MOCK_CURRENT);
   const setCurrentField = (patch) => setCurrent((c) => ({ ...c, ...patch }));
-  const [uploadId, setUploadId] = useState(null);
+  // 업로드된 증빙 N개 — { id, filename, previewUrl, busy, error }
+  const [uploads, setUploads] = useState([]);
 
   // 정산 입력 상태
   const [state, _setState] = useState({
@@ -112,48 +113,104 @@ export function useTravelExpense() {
     [state, current]
   );
 
-  // 업로드 + OCR 추출
+  // 다중 업로드 — 한 번에 한 파일씩 누적. 새 파일이 OCR로 잡은 빈 필드만 채우고 영수증은 합침.
   const pickFile = useCallback(async (file) => {
+    const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const isImage = /\.(png|jpe?g)$/i.test(file.name || "");
+    const previewUrl = isImage ? URL.createObjectURL(file) : null;
+    setUploads((arr) => [
+      ...arr,
+      { id: tempId, filename: file.name || "untitled", previewUrl, busy: true },
+    ]);
     setBusy((b) => ({ ...b, upload: true, extract: true }));
     setError(null);
     try {
       const up = await api.uploadFile(file);
-      setUploadId(up.upload_id);
-      setCurrent((c) => ({ ...c, file: up.filename }));
       const ex = await api.extract(up.upload_id);
-      // 추출 결과를 current/state 에 반영
+      setUploads((arr) =>
+        arr.map((x) => (x.id === tempId ? { ...x, id: up.upload_id, busy: false } : x))
+      );
+      // 빈 필드만 채움 (먼저 추출된 값 우선)
       setCurrent((c) => ({
         ...c,
-        file: up.filename,
-        traveler: ex.traveler ?? c.traveler,
-        dept: ex.dept ?? c.dept,
-        date: ex.trip_date ?? c.date,
-        dateLabel: ex.trip_date ? ex.trip_date.replaceAll("-", ".") : c.dateLabel,
-        time: ex.depart_time && ex.return_time ? `${ex.depart_time} ~ ${ex.return_time}` : c.time,
-        place: ex.place ?? c.place,
-        distance: ex.distance_km ?? c.distance,
+        file: c.file || up.filename,
+        traveler: c.traveler || ex.traveler || "",
+        dept: c.dept || ex.dept || "",
+        date: c.date || ex.trip_date || "",
+        dateLabel: c.dateLabel || (ex.trip_date ? ex.trip_date.replaceAll("-", ".") : ""),
+        time:
+          c.time ||
+          (ex.depart_time && ex.return_time ? `${ex.depart_time} ~ ${ex.return_time}` : ""),
+        place: c.place || ex.place || "",
+        distance: c.distance || ex.distance_km || 0,
       }));
       if (ex.mode_suggested) setState({ mode: ex.mode_suggested });
       if (ex.public_receipts?.length) {
-        setState({
-          publicReceipts: ex.public_receipts.map((r, i) => ({
-            id: i + 1,
-            label: r.label,
-            amount: r.amount,
-          })),
+        _setState((s) => {
+          const existingKeys = new Set(
+            s.publicReceipts.map((r) => `${r.label}|${r.amount}`)
+          );
+          const baseId = s.publicReceipts.reduce((m, r) => Math.max(m, r.id), 0);
+          const added = ex.public_receipts
+            .filter((r) => !existingKeys.has(`${r.label}|${r.amount}`))
+            .map((r, i) => ({ id: baseId + i + 1, label: r.label, amount: r.amount }));
+          return { ...s, publicReceipts: [...s.publicReceipts, ...added] };
         });
       }
     } catch (e) {
       setError(`업로드/추출 실패: ${e.message}`);
+      setUploads((arr) =>
+        arr.map((x) => (x.id === tempId ? { ...x, busy: false, error: e.message } : x))
+      );
     } finally {
       setBusy((b) => ({ ...b, upload: false, extract: false }));
     }
   }, []);
 
+  const pickFiles = useCallback(
+    (files) => {
+      Array.from(files).forEach((f) => pickFile(f));
+    },
+    [pickFile]
+  );
+
+  const removeUpload = useCallback((id) => {
+    setUploads((arr) => {
+      const target = arr.find((x) => x.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return arr.filter((x) => x.id !== id);
+    });
+  }, []);
+
   const clearFile = useCallback(() => {
-    setUploadId(null);
+    setUploads((arr) => {
+      arr.forEach((x) => x.previewUrl && URL.revokeObjectURL(x.previewUrl));
+      return [];
+    });
     setCurrent((c) => ({ ...c, file: "" }));
   }, []);
+
+  // 글로벌 클립보드 paste — 캡처 이미지 자동 업로드 (input/textarea 입력 중에는 무시)
+  useEffect(() => {
+    const onPaste = (e) => {
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type?.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            const ext = item.type.split("/")[1] || "png";
+            const named = new File([file], `paste-${Date.now()}.${ext}`, { type: file.type });
+            pickFile(named);
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [pickFile]);
 
   // 대장에 추가
   const addToLedger = useCallback(async () => {
@@ -217,7 +274,10 @@ export function useTravelExpense() {
     setQuery,
     busy,
     error,
+    uploads,
     pickFile,
+    pickFiles,
+    removeUpload,
     clearFile,
     addToLedger,
   };

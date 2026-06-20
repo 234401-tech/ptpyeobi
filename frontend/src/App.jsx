@@ -22,9 +22,9 @@ export default function App() {
       <main className="max-w-[1400px] mx-auto p-6 grid gap-5 xl:grid-cols-[7fr_5fr] xl:items-start">
         <section className="flex flex-col gap-4">
           <UploadCard
-            filename={t.current.file}
-            onPick={t.pickFile}
-            onClear={t.clearFile}
+            uploads={t.uploads}
+            onPickFiles={t.pickFiles}
+            onRemove={t.removeUpload}
             busy={t.busy.upload || t.busy.extract}
           />
           <CalculationCard
