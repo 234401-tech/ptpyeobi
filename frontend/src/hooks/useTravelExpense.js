@@ -3,7 +3,15 @@ import { api } from "../lib/api.js";
 import { compute } from "../lib/compute.js";
 import { MOCK_CURRENT, MOCK_RECEIPTS } from "../lib/mockData.js";
 
-const FUEL_RANGE = { from: "2026-05-14", to: "2026-05-27" };
+function recentFuelRange() {
+  // 캐시에 누적된 모든 유가를 함께 보여주기 위해 넉넉히 60일.
+  // 오파넷은 그중 최근 7일치만 실제로 보내주고, 나머지 날짜는 DB 캐시에서 hit.
+  const today = new Date();
+  const from = new Date(today);
+  from.setDate(from.getDate() - 60);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  return { from: iso(from), to: iso(today) };
+}
 
 export function useTravelExpense() {
   const [current, setCurrent] = useState(MOCK_CURRENT);
@@ -13,16 +21,33 @@ export function useTravelExpense() {
   const [state, _setState] = useState({
     mode: "self_drive",
     companions: 0,
+    companionNames: [],
     mealsProvided: 0,
     nights: 0,
     region: "metro",
     publicReceipts: MOCK_RECEIPTS,
   });
-  const setState = (patch) => _setState((s) => ({ ...s, ...patch }));
+  const setState = (patch) =>
+    _setState((s) => {
+      const next = { ...s, ...patch };
+      // 동승자 카운터(companions)와 이름 배열(companionNames) 길이 동기화
+      if ("companions" in patch) {
+        const cur = s.companionNames;
+        const n = next.companions;
+        next.companionNames =
+          n > cur.length
+            ? [...cur, ...Array(n - cur.length).fill("")]
+            : cur.slice(0, n);
+      }
+      return next;
+    });
+  const setCompanionNames = (names) =>
+    _setState((s) => ({ ...s, companionNames: names, companions: names.length }));
 
   // 서버 데이터
   const [ledger, setLedger] = useState([]);
   const [fuelPrices, setFuelPrices] = useState([]);
+  const [opinetLive, setOpinetLive] = useState(false);
   const [justAddedNo, setJustAddedNo] = useState(null);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState({ upload: false, extract: false, add: false });
@@ -40,8 +65,17 @@ export function useTravelExpense() {
 
   const loadFuel = useCallback(async () => {
     try {
-      const prices = await api.opinetPrices(FUEL_RANGE.from, FUEL_RANGE.to);
+      const { from, to } = recentFuelRange();
+      const prices = await api.opinetPrices(from, to);
       setFuelPrices(prices);
+      // 받아온 데이터의 최신 날짜가 오늘 기준 7일 이내면 라이브로 간주
+      if (prices.length) {
+        const latest = new Date(prices[0].date);
+        const ageDays = (Date.now() - latest.getTime()) / 86400000;
+        setOpinetLive(ageDays <= 7);
+      } else {
+        setOpinetLive(false);
+      }
     } catch (e) {
       setError(`유가 로드 실패: ${e.message}`);
     }
@@ -162,9 +196,11 @@ export function useTravelExpense() {
     current,
     state,
     setState,
+    setCompanionNames,
     calc,
     ledger,
     fuelPrices,
+    opinetLive,
     justAddedNo,
     query,
     setQuery,

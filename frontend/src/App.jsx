@@ -2,6 +2,7 @@ import { Header } from "./components/Header.jsx";
 import { UploadCard } from "./components/UploadCard.jsx";
 import { CalculationCard } from "./components/CalculationCard.jsx";
 import { LedgerAddCard } from "./components/LedgerAddCard.jsx";
+import { PayoutSummary } from "./components/PayoutSummary.jsx";
 import { FuelPriceCard } from "./components/FuelPriceCard.jsx";
 import { LedgerCard } from "./components/LedgerCard.jsx";
 import { useTravelExpense } from "./hooks/useTravelExpense.js";
@@ -39,13 +40,20 @@ export default function App() {
             onAdd={t.addToLedger}
             busy={t.busy.add}
           />
+          <PayoutSummary
+            current={t.current}
+            state={t.state}
+            calc={t.calc}
+            companionNames={t.state.companionNames}
+            onCompanionNames={t.setCompanionNames}
+          />
         </section>
         <aside className="flex flex-col gap-4">
           <FuelPriceCard
             prices={t.fuelPrices}
             currentDate={t.current.date}
             currentPrice={t.current.fuelPrice}
-            hasLive={false}
+            hasLive={t.opinetLive}
           />
           <LedgerCard
             ledger={t.ledger}

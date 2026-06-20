@@ -59,22 +59,32 @@ export function CalculationCard({ current, state, setState, calc }) {
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">출장자</div>
           <div className="text-sm text-slate-800">
-            {current.traveler} ({current.dept})
+            {current.traveler
+              ? `${current.traveler}${current.dept ? ` (${current.dept})` : ""}`
+              : <span className="text-slate-400">—</span>}
           </div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">출장일시</div>
           <div className="text-sm text-slate-800">
-            {current.dateLabel} {current.time}
+            {current.dateLabel || current.time
+              ? `${current.dateLabel || ""} ${current.time || ""}`.trim()
+              : <span className="text-slate-400">—</span>}
           </div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">출장지</div>
-          <div className="text-sm text-slate-800">{current.place}</div>
+          <div className="text-sm text-slate-800">
+            {current.place || <span className="text-slate-400">—</span>}
+          </div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-[0.1em] text-slate-500 mb-0.5">이동거리</div>
-          <div className="text-sm text-slate-800">{current.distance} km · 카카오맵 자동</div>
+          <div className="text-sm text-slate-800">
+            {current.distance > 0
+              ? `${current.distance} km · 카카오맵 자동`
+              : <span className="text-slate-400">—</span>}
+          </div>
         </div>
       </div>
 

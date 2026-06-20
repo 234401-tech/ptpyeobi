@@ -22,5 +22,8 @@ def get_ocr() -> OCRAdapter:
         from .claude_vision import ClaudeVisionOCR
 
         return ClaudeVisionOCR()
-    # clova / local 은 자리만 잡음 (실제 어댑터는 키 확보 후)
+    if name == "local":
+        from .local import LocalOCR
+
+        return LocalOCR()
     raise RuntimeError(f"지원하지 않는 OCR_PROVIDER: {name}")

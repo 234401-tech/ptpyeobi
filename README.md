@@ -7,7 +7,19 @@
 
 ## 0. 사용법
 
-Claude Code에 진입한 뒤 다음과 같이 시작하세요.
+### 새 PC에 설치하기 (담당자용)
+
+```
+git clone https://github.com/234401-tech/ptpyeobi.git
+cd ptpyeobi
+install.bat       ← 한 번만 (Python·Node·OCR 모델·DB 시드 자동)
+run.bat           ← 두 서버 실행 + 브라우저 자동 오픈
+update.bat        ← GitHub 최신 코드 + 의존성 동기화
+```
+
+`install.bat` 실행 후 `backend\.env` 메모장으로 열어 `OPINET_API_KEY` 등을 입력하면 됩니다.
+
+### Claude Code 로 개발하기
 
 - **처음 만들 때**: "README.md 읽고 Phase 1부터 차례로 만들어줘"
 - **이어서 작업할 때**: "README.md의 Phase X 작업해줘"
@@ -533,3 +545,5 @@ GET    /api/trips/export          XLSX 다운로드
 - 2026-06-20: Phase 4 프론트엔드 완료 — `lib/{constants,compute,api,mockData}.js`, `components/{ui/Card,Counter,Pill,CalcRow / Header,UploadCard,ReceiptEditor,CalculationCard,LedgerAddCard,FuelPriceCard,LedgerCard}.jsx`, `hooks/useTravelExpense.js`. 모든 카드가 디자인 미리보기와 동일, 백엔드와 실연결(대장 로드·유가 로드·업로드+mock OCR·정산 합계 저장→DB No.147 확인). 영수증 편집기는 controlled input + 안정적 key로 focus 유지.
 - 2026-06-20: Phase 5 OCR 통합 완료 — `services/ocr/{base,factory,mock,upstage,claude_vision}.py`. `OCR_PROVIDER` 환경변수로 어댑터 선택. uploads 라우터를 factory 사용으로 교체 + raw 결과 `attachments.ocr_result_json` 저장.
 - 2026-06-20: Phase 6 XLSX export 완료 — `services/exporter.py` (openpyxl, 시트 `2026 국내②`, 20컬럼 + 합계 SUM 공식 + 인디고 헤더), `GET /api/trips/export` (필터 그대로 적용), 프론트 출장대장 카드의 XLSX 버튼 동작. 브라우저에서 6555 bytes 다운로드 확인.
+- 2026-06-20: 오파넷 라이브 연동 + 캐시 누적 표시 (60일 범위 조회). OCR `local` 어댑터 추가 — RapidOCR(PaddleOCR 모델, ONNX) 완전 무료 로컬 OCR. PNG에서 출장일/시간/거리 실추출 확인. 카드 ④ "지급내역(그룹웨어 복사용)" — 동승자 행 자동 + HTML/text 표 복사. 업로드 영역 드래그앤드롭 (PDF/JPG/PNG 검증 + 시각 피드백). 카드 ② 초기 mock 제거 → 빈 상태 "—" 표시.
+- 2026-06-20: 배포 자동화 — `install.bat`/`run.bat`/`update.bat` (CP949 + CRLF, 한글 출력 검증 완료). Python/Node winget 자동 설치, OCR 모델 사전 다운로드, .env 자동 복사, 두 서버 새 창 + 브라우저 오픈, git pull + 의존성 동기화.

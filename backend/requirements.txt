@@ -6,3 +6,5 @@ pydantic-settings>=2.3
 python-multipart>=0.0.9
 httpx>=0.27
 openpyxl>=3.1
+# OCR_PROVIDER=local 사용 시 필요 (PaddleOCR 모델, ONNX Runtime)
+rapidocr-onnxruntime>=1.2
