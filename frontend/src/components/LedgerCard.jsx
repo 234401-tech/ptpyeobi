@@ -1,9 +1,18 @@
-import { Search, ChevronDown, Download } from "lucide-react";
+import { Search, ChevronDown, Download, Plus } from "lucide-react";
 import { Pill } from "./ui/Pill.jsx";
 import { fmt } from "../lib/constants.js";
 import { api } from "../lib/api.js";
 
-export function LedgerCard({ ledger, justAddedNo, query, onQuery }) {
+export function LedgerCard({
+  ledger,
+  justAddedNo,
+  query,
+  onQuery,
+  current,
+  pendingTotal,
+  onAdd,
+  busy,
+}) {
   const downloadXlsx = async () => {
     try {
       const { blob, filename } = await api.exportTripsXlsx({ q: query });
@@ -47,6 +56,35 @@ export function LedgerCard({ ledger, justAddedNo, query, onQuery }) {
           <Download size={11} /> XLSX
         </button>
       </div>
+      {current && (
+        <div className="px-4 py-3 border-b border-slate-100 bg-indigo-50/40">
+          <div className="text-[11px] uppercase tracking-[0.1em] text-indigo-700 font-semibold mb-1.5">
+            추가 예정
+          </div>
+          <div className="flex items-center gap-3 text-xs mb-2.5">
+            <div className="flex-1 min-w-0">
+              <div className="truncate font-medium text-slate-800">
+                {current.title || <span className="text-slate-400">제목 미입력</span>}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                {current.traveler || "—"} · {current.biz || "—"} · {current.fund || "—"}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="tabular font-bold text-indigo-700">{fmt(pendingTotal)}</div>
+              <div className="text-[10px] text-slate-400">원</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={busy}
+            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium rounded-md inline-flex items-center justify-center gap-2"
+          >
+            <Plus size={15} /> {busy ? "저장 중…" : "출장대장에 추가하고 다음 건으로"}
+          </button>
+        </div>
+      )}
       <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
         <div className="flex-1 relative">
           <Search size={12} className="absolute left-2 top-[7px] text-slate-400 pointer-events-none" />

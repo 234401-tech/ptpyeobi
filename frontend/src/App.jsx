@@ -1,7 +1,6 @@
 import { Header } from "./components/Header.jsx";
 import { UploadCard } from "./components/UploadCard.jsx";
 import { CalculationCard } from "./components/CalculationCard.jsx";
-import { LedgerAddCard } from "./components/LedgerAddCard.jsx";
 import { PayoutSummary } from "./components/PayoutSummary.jsx";
 import { FuelPriceCard } from "./components/FuelPriceCard.jsx";
 import { LedgerCard } from "./components/LedgerCard.jsx";
@@ -35,12 +34,6 @@ export default function App() {
             setState={t.setState}
             calc={t.calc}
           />
-          <LedgerAddCard
-            current={t.current}
-            total={t.calc.total}
-            onAdd={t.addToLedger}
-            busy={t.busy.add}
-          />
           <PayoutSummary
             current={t.current}
             state={t.state}
@@ -61,6 +54,10 @@ export default function App() {
             justAddedNo={t.justAddedNo}
             query={t.query}
             onQuery={t.setQuery}
+            current={t.current}
+            pendingTotal={t.calc.total}
+            onAdd={t.addToLedger}
+            busy={t.busy.add}
           />
         </aside>
       </main>

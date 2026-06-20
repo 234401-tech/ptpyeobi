@@ -180,7 +180,7 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
   return (
     <Card>
       <CardHeader
-        num={4}
+        num={3}
         title="지급내역 (그룹웨어 복사용)"
         right={
           <button
