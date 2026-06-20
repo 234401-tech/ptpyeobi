@@ -87,6 +87,15 @@ export function useTravelExpense() {
     loadFuel();
   }, [loadLedger, loadFuel]);
 
+  // 출장일과 오파넷 캐시 자동 매칭 → 유가 자동 적용
+  useEffect(() => {
+    if (!current.date || !fuelPrices.length) return;
+    const match = fuelPrices.find((p) => p.date === current.date);
+    if (match && match.price !== current.fuelPrice) {
+      setCurrent((c) => ({ ...c, fuelPrice: match.price }));
+    }
+  }, [current.date, current.fuelPrice, fuelPrices]);
+
   // 파생 — 정산 결과
   const calc = useMemo(
     () =>
