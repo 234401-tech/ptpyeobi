@@ -31,7 +31,15 @@ function Label({ children }) {
   );
 }
 
-export function CalculationCard({ current, setCurrentField, state, setState, setCompanionNames, calc }) {
+export function CalculationCard({
+  current,
+  setCurrentField,
+  state,
+  setState,
+  setCompanionNames,
+  calc,
+  setOverride,
+}) {
   const {
     mode,
     companions,
@@ -216,6 +224,9 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
             hint={calc.isDriver ? "오파넷 보통휘발유 평균가 · 10원 절사" : null}
             amount={calc.fuelCost}
             zero={!calc.isDriver}
+            onAmountChange={(v) => setOverride?.("fuelCost", v)}
+            isOverridden={calc.isOverridden?.fuelCost}
+            editable={calc.isDriver}
           />
           <CalcRow
             icon={<Hash size={14} />}
@@ -223,12 +234,16 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
             formula={
               calc.isDriver
                 ? calc.tollSum === 0
-                  ? "통행료 무료 구간"
+                  ? "통행료 무료 구간 · 수정 가능"
                   : "하이패스 영수증 합계"
                 : "해당 없음"
             }
+            hint={calc.isDriver ? "✏️ 톨게이트 영수증 OCR이 빠지면 직접 입력하세요" : null}
             amount={calc.tollSum}
-            zero
+            zero={calc.tollSum === 0}
+            onAmountChange={(v) => setOverride?.("tollSum", v)}
+            isOverridden={calc.isOverridden?.tollSum}
+            editable={calc.isDriver}
           />
           {calc.isPublic && (
             <>
@@ -253,6 +268,8 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
             label="식비"
             amount={calc.mealCost}
             zero={calc.mealCost === 0}
+            onAmountChange={(v) => setOverride?.("mealCost", v)}
+            isOverridden={calc.isOverridden?.mealCost}
           >
             <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-500 mono">
               <span>기본 {current.days * 3}식</span>
@@ -280,6 +297,8 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
             }
             amount={calc.perDiem}
             badge={calc.halfPerDiem ? "50% 적용" : null}
+            onAmountChange={(v) => setOverride?.("perDiem", v)}
+            isOverridden={calc.isOverridden?.perDiem}
           />
 
           <CalcRow
@@ -292,6 +311,8 @@ export function CalculationCard({ current, setCurrentField, state, setState, set
             }
             amount={calc.lodgeCost}
             zero={calc.lodgeCost === 0}
+            onAmountChange={(v) => setOverride?.("lodgeCost", v)}
+            isOverridden={calc.isOverridden?.lodgeCost}
           />
         </div>
 

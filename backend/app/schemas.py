@@ -188,4 +188,5 @@ class ExtractOut(BaseModel):
     distance_km: float | None = None
     mode_suggested: str | None = None
     public_receipts: list[PublicReceiptIn] = []
+    companion_names: list[str] = []
     confidence: float | None = None

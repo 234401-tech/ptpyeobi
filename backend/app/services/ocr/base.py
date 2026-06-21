@@ -30,6 +30,7 @@ class TripExtraction:
     distance_km: float | None = None
     mode_suggested: str | None = None  # self_drive | self_passenger | company_car | public_transit
     receipts: list[ReceiptExtraction] = field(default_factory=list)
+    companion_names: list[str] = field(default_factory=list)
     confidence: float | None = None
 
 

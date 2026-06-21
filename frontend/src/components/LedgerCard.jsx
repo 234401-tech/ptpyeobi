@@ -1,8 +1,11 @@
-import { Search, ChevronDown, Download, Plus } from "lucide-react";
+import { useState } from "react";
+import { Search, ChevronDown, Download, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import { Pill } from "./ui/Pill.jsx";
 import { EditableField } from "./ui/EditableField.jsx";
 import { fmt, FUND_SYSTEM_MAP } from "../lib/constants.js";
 import { api } from "../lib/api.js";
+
+const FUND_OPTIONS = ["통장", "e나라", "RCMS", "보탬e", "지방비"];
 
 export function LedgerCard({
   ledger,
@@ -14,7 +17,13 @@ export function LedgerCard({
   pendingTotal,
   onAdd,
   busy,
+  onUpdateRow,
+  onDeleteRow,
 }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const [savingId, setSavingId] = useState(null);
+
   const downloadXlsx = async () => {
     try {
       const { blob, filename } = await api.exportTripsXlsx({ q: query });
@@ -30,12 +39,50 @@ export function LedgerCard({
       alert(`다운로드 실패: ${e.message}`);
     }
   };
+
   const filtered = query
     ? ledger.filter(
         (r) => r.title.includes(query) || r.traveler_name.includes(query)
       )
     : ledger;
   const monthSum = filtered.reduce((a, b) => a + (b.total || 0), 0);
+
+  const startEdit = (row) => {
+    setEditingId(row.id);
+    setEditDraft({
+      title: row.title || "",
+      traveler_name: row.traveler_name || "",
+      total: row.total || 0,
+      fund_system: row.fund_system || "",
+    });
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft(null);
+  };
+  const saveEdit = async (id) => {
+    if (!editDraft) return;
+    setSavingId(id);
+    try {
+      await onUpdateRow(id, {
+        title: editDraft.title,
+        traveler_name: editDraft.traveler_name,
+        total: Number(editDraft.total) || 0,
+        fund_system: editDraft.fund_system || null,
+      });
+      cancelEdit();
+    } catch (_) {
+      // 에러는 훅이 setError 함
+    } finally {
+      setSavingId(null);
+    }
+  };
+  const removeRow = async (row) => {
+    if (!window.confirm(`No.${row.no} "${row.title}" 을(를) 삭제할까요?`)) return;
+    try {
+      await onDeleteRow(row.id);
+    } catch (_) {}
+  };
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg sticky top-4">
@@ -104,7 +151,7 @@ export function LedgerCard({
               className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-500"
             >
               <option value="">선택…</option>
-              {["통장", "e나라", "RCMS", "보탬e", "지방비"].map((s) => (
+              {FUND_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -169,22 +216,87 @@ export function LedgerCard({
               <th className="px-2 py-2 text-left font-medium">출장자</th>
               <th className="px-2 py-2 text-right font-medium">출장비</th>
               <th className="px-2 py-2 text-center font-medium">시스템</th>
+              <th className="px-2 py-2 w-14"></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center text-slate-400 py-8 text-[11px]">
+                <td colSpan={6} className="text-center text-slate-400 py-8 text-[11px]">
                   데이터 없음
                 </td>
               </tr>
             )}
             {filtered.map((r) => {
               const just = justAddedNo === r.no;
+              const isEditing = editingId === r.id;
+              if (isEditing && editDraft) {
+                return (
+                  <tr key={r.id ?? r.no} className="border-t border-slate-100 bg-indigo-50/40 align-top">
+                    <td className="px-2 py-2 text-slate-400 mono text-[11px] tabular w-8">{r.no}</td>
+                    <td className="px-2 py-2" colSpan={4}>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <input
+                          type="text"
+                          value={editDraft.title}
+                          onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })}
+                          placeholder="제목"
+                          className="col-span-2 text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={editDraft.traveler_name}
+                          onChange={(e) => setEditDraft({ ...editDraft, traveler_name: e.target.value })}
+                          placeholder="출장자"
+                          className="text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+                        />
+                        <input
+                          type="number"
+                          value={editDraft.total}
+                          onChange={(e) => setEditDraft({ ...editDraft, total: e.target.value })}
+                          placeholder="출장비"
+                          className="text-xs border border-slate-300 rounded px-2 py-1 text-right tabular focus:outline-none focus:border-indigo-500"
+                        />
+                        <select
+                          value={editDraft.fund_system}
+                          onChange={(e) => setEditDraft({ ...editDraft, fund_system: e.target.value })}
+                          className="col-span-2 text-xs border border-slate-300 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="">시스템 없음</option>
+                          {FUND_OPTIONS.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => saveEdit(r.id)}
+                          disabled={savingId === r.id}
+                          className="w-6 h-6 grid place-items-center rounded bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white"
+                          title="저장"
+                        >
+                          <Check size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="w-6 h-6 grid place-items-center rounded border border-slate-300 hover:bg-slate-50 text-slate-600"
+                          title="취소"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
               return (
                 <tr
                   key={r.id ?? r.no}
-                  className={`border-t border-slate-100 hover:bg-slate-50/70 ${
+                  className={`group border-t border-slate-100 hover:bg-slate-50/70 ${
                     just ? "bg-emerald-50 animate-pulse" : ""
                   }`}
                 >
@@ -197,6 +309,26 @@ export function LedgerCard({
                   <td className="px-2 py-2 text-right tabular font-medium">{fmt(r.total)}</td>
                   <td className="px-2 py-2 text-center">
                     <Pill fund={r.fund_system} />
+                  </td>
+                  <td className="px-1 py-2 text-right">
+                    <div className="opacity-0 group-hover:opacity-100 transition flex items-center justify-end gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(r)}
+                        className="w-6 h-6 grid place-items-center rounded text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"
+                        title="수정"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeRow(r)}
+                        className="w-6 h-6 grid place-items-center rounded text-slate-500 hover:bg-red-50 hover:text-red-600"
+                        title="삭제"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );

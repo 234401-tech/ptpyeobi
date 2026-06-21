@@ -34,6 +34,7 @@ export default function App() {
             setState={t.setState}
             setCompanionNames={t.setCompanionNames}
             calc={t.calc}
+            setOverride={t.setOverride}
           />
           <PayoutSummary
             current={t.current}
@@ -60,6 +61,8 @@ export default function App() {
             pendingTotal={t.calc.total}
             onAdd={t.addToLedger}
             busy={t.busy.add}
+            onUpdateRow={t.updateLedgerRow}
+            onDeleteRow={t.deleteLedgerRow}
           />
         </aside>
       </main>

@@ -75,59 +75,53 @@ function buildBreakdown({ current, state, calc }) {
   return lines.join("\n");
 }
 
-function buildPlainText(rows, breakdown) {
-  const head = ["성명", "교통비", "일비", "숙박비", "식비", "계"].join("\t");
-  const body = rows
-    .map((r) =>
-      [r.name, dash(r.transport), dash(r.perDiem), dash(r.lodge), dash(r.meal), fmt(r.total)].join(
-        "\t"
-      )
-    )
-    .join("\n");
-  return `※지급내역(주관부서 작성)\n${head}\n${body}\n\n※산출내역\n${breakdown}`;
+// ──────────────────────── 지급내역 (TSV + 미니멀 HTML) ────────────────────────
+// 두 형식을 동시에 클립보드에 등록 — 그룹웨어 종류별로 알맞은 쪽으로 매핑:
+//   - 한글/엑셀, 표 매핑 지원 그룹웨어 → HTML 표를 셀별로 분배
+//   - TSV만 인식하는 환경            → 탭 구분 평문으로 셀 이동
+// 단 HTML 은 스타일/wrapper 없이 순수 <table><tr><td> 구조만 — 이전처럼 표 중첩되지 않게.
+
+function buildPayoutCells(rows) {
+  // [['김승모','-','25,000', ...], ...] 형태로 반환 — TSV / HTML / 셀 클릭 모두 공용
+  return rows.map((r) => [
+    r.name,
+    dash(r.transport),
+    dash(r.perDiem),
+    dash(r.lodge),
+    dash(r.meal),
+    fmt(r.total),
+  ]);
 }
 
-function buildHtml(rows, breakdown) {
-  const cell =
-    'style="border:1px solid #999; padding:6px 10px; text-align:center; font-family:맑은 고딕,Malgun Gothic,sans-serif;"';
-  const cellR = cell.replace("center", "right");
-  const head = `
-<tr>
-  <th ${cell}>성 명</th>
-  <th ${cell}>교통비</th>
-  <th ${cell}>일 비</th>
-  <th ${cell}>숙박비</th>
-  <th ${cell}>식 비</th>
-  <th ${cell}>계</th>
-</tr>`;
-  const body = rows
+function buildPayoutText(rows) {
+  return buildPayoutCells(rows)
+    .map((cells) => cells.join("\t"))
+    .join("\n");
+}
+
+function buildPayoutHtml(rows) {
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const body = buildPayoutCells(rows)
     .map(
-      (r) => `
-<tr>
-  <td ${cell}>${r.name}</td>
-  <td ${cellR}>${dash(r.transport)}</td>
-  <td ${cellR}>${dash(r.perDiem)}</td>
-  <td ${cellR}>${dash(r.lodge)}</td>
-  <td ${cellR}>${dash(r.meal)}</td>
-  <td ${cellR}>${fmt(r.total)}</td>
-</tr>`
+      (cells) =>
+        "<tr>" + cells.map((c) => `<td>${esc(c)}</td>`).join("") + "</tr>"
     )
     .join("");
-  const escBreakdown = breakdown
-    .split("\n")
-    .map((l) => l.replace(/&/g, "&amp;").replace(/</g, "&lt;"))
-    .join("<br/>");
-  return `<div style="font-family:맑은 고딕,Malgun Gothic,sans-serif">
-<p><b>※지급내역(주관부서 작성)</b></p>
-<table style="border-collapse:collapse">${head}${body}</table>
-<p style="margin-top:12px"><b>※산출내역</b></p>
-<div>${escBreakdown}</div>
-</div>`;
+  // 순수 표 구조만 — 외부에 <p> 같은 텍스트 wrapper 없음. 셀 자동 매핑이 쉽도록.
+  return `<table><tbody>${body}</tbody></table>`;
 }
 
-async function copyBoth(text, html) {
-  // 1순위: ClipboardItem — text/plain + text/html 동시 (그룹웨어가 표로 인식)
-  if (navigator.clipboard && window.ClipboardItem) {
+// ──────────────────────── 산출내역 (평문) ────────────────────────
+
+function buildBreakdownText(breakdown) {
+  return breakdown;
+}
+
+// ──────────────────────── 클립보드 ────────────────────────
+
+async function writeMixed(text, html) {
+  // 1순위: text/plain + text/html 동시 등록 (그룹웨어가 표 매핑 시도)
+  if (html && navigator.clipboard && window.ClipboardItem) {
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -140,14 +134,12 @@ async function copyBoth(text, html) {
       // fall through
     }
   }
-  // 2순위: writeText
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (_) {
     // fall through
   }
-  // 3순위: execCommand (focus 없어도 동작, 일부 브라우저)
   const ta = document.createElement("textarea");
   ta.value = text;
   ta.style.position = "fixed";
@@ -161,21 +153,44 @@ async function copyBoth(text, html) {
 }
 
 export function PayoutSummary({ current, state, calc, companionNames, onCompanionNames }) {
-  const [copied, setCopied] = useState(false);
+  // 버튼/셀별 "복사됨" 잔여 표시 — `payout` | `breakdown` | `cell:i:j`
+  const [copiedKey, setCopiedKey] = useState(null);
   const rows = buildRows({ current, calc, companionNames });
   const breakdown = buildBreakdown({ current, state, calc });
+  const cellsMatrix = buildPayoutCells(rows);
 
-  const onCopy = async () => {
-    const text = buildPlainText(rows, breakdown);
-    const html = buildHtml(rows, breakdown);
+  const flash = (key) => {
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1200);
+  };
+
+  const onCopyPayout = async () => {
     try {
-      await copyBoth(text, html);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      await writeMixed(buildPayoutText(rows), buildPayoutHtml(rows));
+      flash("payout");
     } catch (e) {
       alert(`복사 실패: ${e.message}`);
     }
   };
+  const onCopyBreakdown = async () => {
+    try {
+      await writeMixed(buildBreakdownText(breakdown), null);
+      flash("breakdown");
+    } catch (e) {
+      alert(`복사 실패: ${e.message}`);
+    }
+  };
+  const onCopyCell = async (rowIdx, colIdx) => {
+    const value = cellsMatrix[rowIdx]?.[colIdx] ?? "";
+    if (value === "" || value === "-") return; // 빈/대시는 복사 의미 없음
+    try {
+      await writeMixed(String(value), null);
+      flash(`cell:${rowIdx}:${colIdx}`);
+    } catch (_) {}
+  };
+
+  const btnCls =
+    "text-xs px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700";
 
   return (
     <Card>
@@ -183,21 +198,22 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
         num={3}
         title="지급내역 (그룹웨어 복사용)"
         right={
-          <button
-            type="button"
-            onClick={onCopy}
-            className="text-xs px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700"
-          >
-            {copied ? (
-              <>
-                <Check size={13} /> 복사됨
-              </>
-            ) : (
-              <>
-                <Copy size={13} /> 표·산출내역 복사
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onCopyPayout} className={btnCls}>
+              {copiedKey === "payout" ? (
+                <><Check size={13} /> 복사됨</>
+              ) : (
+                <><Copy size={13} /> 지급내역 복사</>
+              )}
+            </button>
+            <button type="button" onClick={onCopyBreakdown} className={btnCls}>
+              {copiedKey === "breakdown" ? (
+                <><Check size={13} /> 복사됨</>
+              ) : (
+                <><Copy size={13} /> 산출내역 복사</>
+              )}
+            </button>
+          </div>
         }
       />
       <div className="px-5 pb-5">
@@ -220,9 +236,31 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
             <tbody>
               {rows.map((r, i) => {
                 const isCompanion = i > 0;
+                // 셀 데이터 — 클릭 복사용 (이름, 교통비, 일비, 숙박비, 식비, 계)
+                const cellVals = [
+                  r.name,
+                  dash(r.transport),
+                  dash(r.perDiem),
+                  dash(r.lodge),
+                  dash(r.meal),
+                  fmt(r.total),
+                ];
+                const copyableCellCls = (j) =>
+                  `cursor-pointer transition ${
+                    copiedKey === `cell:${i}:${j}`
+                      ? "bg-emerald-100 ring-1 ring-emerald-400"
+                      : "hover:bg-indigo-50"
+                  }`;
+                const isEmpty = (v) => v === "" || v === "-";
                 return (
                   <tr key={i} className="border-t border-slate-300 text-center">
-                    <td className="border-r border-slate-300 py-1.5 px-2">
+                    <td
+                      className={`border-r border-slate-300 py-1.5 px-2 ${
+                        !isCompanion && !isEmpty(cellVals[0]) ? copyableCellCls(0) : ""
+                      }`}
+                      onClick={() => !isCompanion && onCopyCell(i, 0)}
+                      title={!isCompanion && !isEmpty(cellVals[0]) ? "클릭해서 셀 값만 복사" : ""}
+                    >
                       {isCompanion ? (
                         <input
                           type="text"
@@ -239,19 +277,25 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
                         <span>{r.name}</span>
                       )}
                     </td>
-                    <td className="border-r border-slate-300 py-1.5 px-2 text-right tabular">
-                      {dash(r.transport)}
+                    {[1, 2, 3, 4].map((j) => (
+                      <td
+                        key={j}
+                        className={`border-r border-slate-300 py-1.5 px-2 text-right tabular ${
+                          !isEmpty(cellVals[j]) ? copyableCellCls(j) : ""
+                        }`}
+                        onClick={() => onCopyCell(i, j)}
+                        title={!isEmpty(cellVals[j]) ? "클릭해서 셀 값만 복사" : ""}
+                      >
+                        {cellVals[j]}
+                      </td>
+                    ))}
+                    <td
+                      className={`py-1.5 px-2 text-right tabular font-semibold ${copyableCellCls(5)}`}
+                      onClick={() => onCopyCell(i, 5)}
+                      title="클릭해서 셀 값만 복사"
+                    >
+                      {cellVals[5]}
                     </td>
-                    <td className="border-r border-slate-300 py-1.5 px-2 text-right tabular">
-                      {dash(r.perDiem)}
-                    </td>
-                    <td className="border-r border-slate-300 py-1.5 px-2 text-right tabular">
-                      {dash(r.lodge)}
-                    </td>
-                    <td className="border-r border-slate-300 py-1.5 px-2 text-right tabular">
-                      {dash(r.meal)}
-                    </td>
-                    <td className="py-1.5 px-2 text-right tabular font-semibold">{fmt(r.total)}</td>
                   </tr>
                 );
               })}
@@ -267,9 +311,10 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
 {breakdown || "(산출 내역 없음)"}
         </pre>
 
-        <p className="text-[11px] text-slate-400 mt-2">
-          ⓘ "표·산출내역 복사" 누른 뒤 그룹웨어 결재 본문에 붙여넣으세요. 한글·엑셀에는 표 형식
-          그대로, 그 외 에디터에는 탭 구분 텍스트로 들어갑니다.
+        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+          ⓘ <b>지급내역 복사</b> 는 TSV·HTML 둘 다 클립보드에 넣습니다 — 그룹웨어 표의 첫 데이터 셀에 커서 두고 붙여넣으면 셀별로 자동 채워지는 환경이 많습니다.
+          <br/>
+          자동 분배가 안 되는 그룹웨어라면 위 미리보기 표의 <b>셀을 직접 클릭</b>하면 그 값만 복사돼요 → 결재창 셀에 한 번씩 붙여넣기.
         </p>
       </div>
     </Card>

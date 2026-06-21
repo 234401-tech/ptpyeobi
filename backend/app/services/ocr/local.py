@@ -17,6 +17,7 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
+from ._image_split import cleanup, merge_extractions, split_if_composite
 from .base import OCRAdapter, ReceiptExtraction, TripExtraction
 
 _RX_DATE = re.compile(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})")
@@ -35,8 +36,100 @@ _RX_CARD_MASK = re.compile(r"\d{4}-?\*+")
 _RX_LABEL_TRAVELER = re.compile(r"출\s*장?\s*자\s*[:：]?\s*(.+)")
 _RX_LABEL_PLACE = re.compile(r"출\s*장?\s*지\s*[:：]?\s*(.+)")
 _RX_LABEL_DATETIME = re.compile(r"출\s*장?\s*일?\s*시\s*[:：]?\s*(.+)")
-# 한국어 인명 후보 (콤마/공백/그리고 로 구분, 각 2~5자 한글)
-_RX_KOR_NAMES = re.compile(r"[가-힣]{2,5}(?:\s*[,및과/\s]\s*[가-힣]{2,5})*")
+# 동승자 — "동 승 자", "동승인", "동승자명"
+_RX_LABEL_COMPANIONS = re.compile(r"동\s*승\s*(?:자|인)\s*(?:명)?\s*[:：]?\s*(.+)")
+# 한 인명 — "김승모" 또는 "김 승 모" (글자 사이 공백 허용, 2~5자)
+_RX_KOR_NAME_ONE = re.compile(r"(?:[가-힣]\s*){2,5}")
+
+# 영수증 종류 분류용 키워드
+# 대중교통 = 사용자가 자기 차로 안 갔다는 증거
+PUBLIC_TRANSIT_KEYWORDS = (
+    "KTX", "SRT", "ITX", "새마을", "무궁화", "누리로", "코레일", "기차", "열차", "승차권",
+    "시외", "고속버스", "우등", "버스", "택시", "지하철", "메트로",
+    "항공", "비행기", "대한항공", "아시아나", "제주항공", "진에어",
+)
+# 자가차량 = 자기 차로 갔다는 증거 (대중교통으로 추정하면 안 됨)
+SELF_DRIVE_KEYWORDS = (
+    # 통행료/하이패스
+    "하이패스", "HiPass", "Hi-Pass", "톨게이트", "통행료",
+    "한국도로공사", "도로공사", "고속도로", "민자고속도로", "영업소",
+    # 주유 — 발행처/업종
+    "주유소", "주유", "셀프주유", "휘발유", "경유", "유류대", "유류비",
+    "S-OIL", "S-Oil", "에쓰오일", "GS칼텍스", "SK에너지", "현대오일뱅크",
+    "알뜰주유", "오일뱅크",
+    # 주차
+    "주차", "주차장", "공영주차장",
+)
+
+
+# "○○영업소" / "○○주유소" 같은 발행지명 추출용
+_RX_TOLL_PLAZA = re.compile(r"([가-힣A-Za-z0-9]{2,15}\s*영업소)")
+_RX_GAS_STATION = re.compile(r"([가-힣A-Za-z0-9]{2,15}주유소)")
+# 의미 없는 / 너무 짧은 라벨로 간주할 후보 (자동 라벨로 덮어씀)
+_VAGUE_LABELS = {"", "영수증", "원", "공급가액", "부가세", "합계"}
+
+
+def _enhance_toll_labels(receipts: list, blob: str) -> None:
+    """영수증 라벨이 비거나 무의미한데 본문에 '통행료/하이패스' 신호가 있으면
+    "통행료 (○○영업소)" 형태로 라벨을 덮어쓴다.
+
+    주유 영수증도 같은 처리 — '○○주유소' / 'S-OIL' 등의 정보로 라벨 보강.
+    """
+    has_toll = any(kw in blob for kw in ("하이패스", "통행료", "한국도로공사", "톨게이트"))
+    has_fuel = any(kw in blob for kw in ("주유", "휘발유", "경유", "S-OIL", "에쓰오일"))
+    if not (has_toll or has_fuel):
+        return
+
+    plazas = _RX_TOLL_PLAZA.findall(blob)
+    stations = _RX_GAS_STATION.findall(blob)
+
+    for r in receipts:
+        label_clean = r.label.strip(" :·-()[]")
+        # 의미있는 라벨이 이미 있으면 그대로 둠
+        if label_clean and label_clean not in _VAGUE_LABELS and len(label_clean) >= 3:
+            continue
+
+        if has_toll:
+            if plazas:
+                # 영업소 정보가 여러 개면 첫 두 개를 → 형태로 ("포항영업소 → 청통와촌영업소")
+                first = re.sub(r"\s+", "", plazas[0])
+                if len(plazas) >= 2:
+                    second = re.sub(r"\s+", "", plazas[1])
+                    r.label = f"통행료 ({first} → {second})"
+                else:
+                    r.label = f"통행료 ({first})"
+            else:
+                r.label = "통행료"
+        elif has_fuel:
+            if stations:
+                r.label = f"유류대 ({stations[0]})"
+            elif "S-OIL" in blob.upper():
+                r.label = "유류대 (S-OIL)"
+            else:
+                r.label = "유류대"
+
+
+def _classify_receipts(receipts_text: str) -> str | None:
+    """영수증 라벨/원문에서 키워드 매칭해서 mode 추정.
+
+    반환:
+      "public_transit" — 대중교통 키워드만 있거나 우세
+      "self_drive"     — 자가차량 키워드만 있거나 우세
+      None             — 단서 없음 (호출자가 거리 등 다른 단서로 판단)
+    """
+    if not receipts_text:
+        return None
+    text = receipts_text.upper()
+    public_hits = sum(1 for kw in PUBLIC_TRANSIT_KEYWORDS if kw.upper() in text)
+    self_hits = sum(1 for kw in SELF_DRIVE_KEYWORDS if kw.upper() in text)
+    if public_hits == 0 and self_hits == 0:
+        return None
+    if self_hits > public_hits:
+        return "self_drive"
+    if public_hits > 0:
+        return "public_transit"
+    return None
+
 
 _OCR = None
 
@@ -86,6 +179,15 @@ class LocalOCR(OCRAdapter):
                 f"local OCR 은 이미지만 지원 (입력: {ext}). PDF는 claude_vision/upstage 사용."
             )
 
+        # 좌우 합친 영수증이면 분할해서 각각 OCR → 머지
+        parts = split_if_composite(file_path)
+        try:
+            results = [self._extract_one(p) for p in parts]
+            return merge_extractions(results)
+        finally:
+            cleanup(parts, file_path)
+
+    def _extract_one(self, file_path: str) -> TripExtraction:
         # 작은 한글 잘 잡히도록 이미지 전처리
         preprocessed = _preprocess(file_path)
         ocr = _get_ocr()
@@ -107,7 +209,7 @@ class LocalOCR(OCRAdapter):
                 continue
             lines.append((text.strip(), conf))
 
-        return _parse(lines)
+        return parse_lines(lines)
 
 
 def _label_value(lines: list[tuple[str, float]], rx) -> str | None:
@@ -127,18 +229,30 @@ def _label_value(lines: list[tuple[str, float]], rx) -> str | None:
     return None
 
 
-def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
+def parse_lines(lines: list[tuple[str, float]]) -> TripExtraction:
+    """OCR 어댑터 공용 파서 — (text, confidence) 줄 리스트를 받아 TripExtraction 반환.
+
+    upstage / claude_vision 같은 다른 어댑터도 같은 정규식·키워드 로직 재사용 가능.
+    """
     blob = "\n".join(t for t, _ in lines)
 
-    # 출장자 — "출장자" 라벨 뒤의 값에서 한국어 이름들만 추출
+    # 출장자 — "출장자" 라벨 뒤에서 인명 1명 추출 ("김승모" 또는 "김 승 모")
     traveler = None
     raw = _label_value(lines, _RX_LABEL_TRAVELER)
     if raw:
-        names = _RX_KOR_NAMES.findall(raw)
-        # findall 은 그룹 결과만 — 전체 매치 다시 찾기
-        matches = list(re.finditer(r"[가-힣]{2,5}(?:\s*[,및과/\s]\s*[가-힣]{2,5})*", raw))
-        if matches:
-            traveler = matches[0].group(0).strip()
+        m = _RX_KOR_NAME_ONE.search(raw)
+        if m:
+            # 글자 사이 공백 제거 — "김 승 모" → "김승모"
+            traveler = re.sub(r"\s+", "", m.group(0))
+
+    # 동승자 — 콤마/공백 구분된 여러 명 추출
+    companion_names: list[str] = []
+    raw_comp = _label_value(lines, _RX_LABEL_COMPANIONS)
+    if raw_comp:
+        for m in _RX_KOR_NAME_ONE.finditer(raw_comp):
+            name = re.sub(r"\s+", "", m.group(0))
+            if name and name != traveler:
+                companion_names.append(name)
 
     # 출장지 — "출장지" 라벨 뒤의 값 그대로 (괄호 안 기관명 포함)
     place = _label_value(lines, _RX_LABEL_PLACE)
@@ -232,10 +346,16 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
     field_hits = sum(bool(x) for x in (trip_date, distance_km, depart_time))
     overall = min(0.95, avg_conf * (0.5 + 0.15 * field_hits))
 
-    # 모드 자동 추정: 영수증이 있고 거리가 없으면 대중교통 (KTX/버스 등)
-    mode_suggested = None
-    if receipts and not distance_km:
-        mode_suggested = "public_transit"
+    # 모드 자동 추정: 영수증 텍스트의 키워드로 분류.
+    # 강한 신호(KTX/하이패스/주유/한국도로공사 등)가 있을 때만 모드를 제안.
+    # 카페·식당 등 중립 영수증은 어떤 교통수단에서도 발생할 수 있으므로
+    # 단서 없으면 None 을 반환해 사용자의 토글 선택을 유지한다.
+    receipts_blob = " ".join(r.label for r in receipts) + "\n" + blob
+    mode_suggested = _classify_receipts(receipts_blob)
+
+    # 영수증 라벨 자동 보강 — 하이패스/통행료 영수증은 라벨이 빈/무의미로 잡힌다.
+    # 본문에서 영업소·발행기관 정보를 찾아 "통행료 (○○영업소)" 형태로 채움.
+    _enhance_toll_labels(receipts, blob)
 
     return TripExtraction(
         traveler=traveler,
@@ -246,5 +366,6 @@ def _parse(lines: list[tuple[str, float]]) -> TripExtraction:
         distance_km=distance_km,
         mode_suggested=mode_suggested,
         receipts=receipts,
+        companion_names=companion_names,
         confidence=overall,
     )

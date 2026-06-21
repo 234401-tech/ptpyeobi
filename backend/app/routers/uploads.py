@@ -95,5 +95,6 @@ def extract(upload_id: int, db: Session = Depends(get_db)):
             PublicReceiptIn(label=r.label, amount=r.amount, ocr_confidence=r.confidence)
             for r in result.receipts
         ],
+        companion_names=list(result.companion_names),
         confidence=result.confidence,
     )

@@ -175,6 +175,10 @@ export function UploadCard({ uploads, onPickFiles, onRemove, busy }) {
             </div>
           )}
         </div>
+        <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+          💡 영수증 여러 장을 한 이미지에 합치지 말고 <b>1장씩 따로</b> 올리면 인식이 더 정확해요.
+          좌우로 붙은 톨게이트 영수증은 자동 분리해 시도하지만, 분리 실패 시 라벨/날짜가 섞일 수 있어요.
+        </p>
       </div>
     </Card>
   );

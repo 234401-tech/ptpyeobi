@@ -28,6 +28,15 @@ export function useTravelExpense() {
     nights: 0,
     region: "metro",
     publicReceipts: MOCK_RECEIPTS,
+    // 자동 산정 결과의 사용자 수동 수정값. null/undefined 이면 자동 계산값 사용.
+    overrides: {
+      fuelCost: null,
+      tollSum: null,
+      publicCost: null,
+      mealCost: null,
+      perDiem: null,
+      lodgeCost: null,
+    },
   });
   const setState = (patch) =>
     _setState((s) => {
@@ -88,12 +97,14 @@ export function useTravelExpense() {
     loadFuel();
   }, [loadLedger, loadFuel]);
 
-  // 출장일과 오파넷 캐시 자동 매칭 → 유가 자동 적용
+  // 출장일과 오파넷 캐시 자동 매칭 → 유가 자동 적용.
+  // 출장일이 캐시 범위 밖이면(오파넷은 최근 7일치만 제공) 가장 최신 가격으로 폴백.
   useEffect(() => {
-    if (!current.date || !fuelPrices.length) return;
-    const match = fuelPrices.find((p) => p.date === current.date);
-    if (match && match.price !== current.fuelPrice) {
-      setCurrent((c) => ({ ...c, fuelPrice: match.price }));
+    if (!fuelPrices.length) return;
+    const exact = current.date ? fuelPrices.find((p) => p.date === current.date) : null;
+    const target = exact ?? fuelPrices[0]; // fuelPrices 는 최신순(desc) 정렬
+    if (target && target.price !== current.fuelPrice) {
+      setCurrent((c) => ({ ...c, fuelPrice: target.price }));
     }
   }, [current.date, current.fuelPrice, fuelPrices]);
 
@@ -109,9 +120,37 @@ export function useTravelExpense() {
         region: state.region,
         mealsProvided: state.mealsProvided,
         publicReceipts: state.publicReceipts,
+        overrides: state.overrides,
       }),
     [state, current]
   );
+
+  // 자동 산정 항목별 수동 수정 — key 가 키, value 가 숫자(또는 null=자동복원)
+  const setOverride = useCallback((key, value) => {
+    _setState((s) => ({
+      ...s,
+      overrides: { ...s.overrides, [key]: value === null || value === "" ? null : Number(value) },
+    }));
+  }, []);
+
+  // 출장 유형(mode) 바뀌면 그 모드에서 의미 없는 override 만 초기화 — 예: 대중교통 ↔ 자가차량
+  // 사용자가 직접 입력한 값은 가능한 한 보존하되 모드 전환 시 항목별 적용 가능성이 사라지면 reset.
+  useEffect(() => {
+    _setState((s) => {
+      if (state.mode === "public_transit") {
+        // 대중교통이면 fuel/toll override 는 무의미
+        if (s.overrides.fuelCost !== null || s.overrides.tollSum !== null) {
+          return { ...s, overrides: { ...s.overrides, fuelCost: null, tollSum: null } };
+        }
+      } else if (state.mode !== "self_drive") {
+        // self_passenger / company_car 도 fuel/toll 미지급
+        if (s.overrides.fuelCost !== null || s.overrides.tollSum !== null) {
+          return { ...s, overrides: { ...s.overrides, fuelCost: null, tollSum: null } };
+        }
+      }
+      return s;
+    });
+  }, [state.mode]);
 
   // 다중 업로드 — 한 번에 한 파일씩 누적. 새 파일이 OCR로 잡은 빈 필드만 채우고 영수증은 합침.
   const pickFile = useCallback(async (file) => {
@@ -144,7 +183,21 @@ export function useTravelExpense() {
         place: c.place || ex.place || "",
         distance: c.distance || ex.distance_km || 0,
       }));
-      if (ex.mode_suggested) setState({ mode: ex.mode_suggested });
+      if (ex.mode_suggested) {
+        // 우선순위: 한 번이라도 public_transit 으로 잡히면 유지 (KTX 신호가 강함).
+        // 자가차량 영수증(하이패스/주유)이 뒤이어 들어와도 덮어쓰지 않음.
+        _setState((s) => {
+          if (s.mode === "public_transit" && ex.mode_suggested !== "public_transit") return s;
+          return { ...s, mode: ex.mode_suggested };
+        });
+      }
+      if (ex.companion_names?.length) {
+        // 기존 동승자가 비어있을 때만 채움 (사용자 수정 보존)
+        _setState((s) => {
+          if (s.companionNames.some((n) => n.trim())) return s;
+          return { ...s, companionNames: ex.companion_names, companions: ex.companion_names.length };
+        });
+      }
       if (ex.public_receipts?.length) {
         _setState((s) => {
           const existingKeys = new Set(
@@ -259,6 +312,31 @@ export function useTravelExpense() {
     }
   }, [current, state, calc]);
 
+  // 대장 행 수정 — PATCH
+  const updateLedgerRow = useCallback(async (id, patch) => {
+    setError(null);
+    try {
+      const updated = await api.updateTrip(id, patch);
+      setLedger((rs) => rs.map((r) => (r.id === id ? updated : r)));
+      return updated;
+    } catch (e) {
+      setError(`수정 실패: ${e.message}`);
+      throw e;
+    }
+  }, []);
+
+  // 대장 행 삭제 — DELETE
+  const deleteLedgerRow = useCallback(async (id) => {
+    setError(null);
+    try {
+      await api.deleteTrip(id);
+      setLedger((rs) => rs.filter((r) => r.id !== id));
+    } catch (e) {
+      setError(`삭제 실패: ${e.message}`);
+      throw e;
+    }
+  }, []);
+
   return {
     current,
     setCurrentField,
@@ -280,5 +358,8 @@ export function useTravelExpense() {
     removeUpload,
     clearFile,
     addToLedger,
+    updateLedgerRow,
+    deleteLedgerRow,
+    setOverride,
   };
 }
