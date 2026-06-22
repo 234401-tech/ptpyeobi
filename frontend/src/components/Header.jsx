@@ -1,8 +1,11 @@
-import { LogOut, Settings } from "lucide-react";
+import { useState } from "react";
+import { LogOut, Settings, KeyRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Logo } from "./ui/Logo.jsx";
+import { PasswordChangeModal } from "./PasswordChangeModal.jsx";
 
 export function Header({ user, onLogout }) {
+  const [pwOpen, setPwOpen] = useState(false);
   return (
     <header className="bg-white border-b border-slate-200">
       <div className="max-w-[1400px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
@@ -35,6 +38,14 @@ export function Header({ user, onLogout }) {
               <span className="text-slate-700 font-medium">{user.username}</span>
               <button
                 type="button"
+                onClick={() => setPwOpen(true)}
+                className="inline-flex items-center gap-1 text-slate-500 hover:text-indigo-700"
+                title="내 비밀번호 변경"
+              >
+                <KeyRound size={12} /> 비번 변경
+              </button>
+              <button
+                type="button"
                 onClick={onLogout}
                 className="inline-flex items-center gap-1 text-slate-500 hover:text-red-600"
                 title="로그아웃"
@@ -45,6 +56,7 @@ export function Header({ user, onLogout }) {
           )}
         </div>
       </div>
+      <PasswordChangeModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </header>
   );
 }
