@@ -16,7 +16,7 @@ import time
 
 import httpx
 
-from app.config import settings
+from app import settings_store
 
 from ._image_split import cleanup, enhance_for_ocr, merge_extractions, split_if_composite
 from .base import OCRAdapter, TripExtraction
@@ -31,7 +31,7 @@ class UpstageOCR(OCRAdapter):
     name = "upstage"
 
     def extract(self, file_path: str) -> TripExtraction:
-        if not settings.upstage_api_key:
+        if not settings_store.get("upstage_api_key"):
             raise RuntimeError("UPSTAGE_API_KEY 미설정 — backend/.env 에 키 추가 후 서버 재시작")
 
         # 좌우 합친 영수증이면 분할해서 각 부분 OCR → 결과 머지
@@ -53,7 +53,7 @@ class UpstageOCR(OCRAdapter):
                 Path(enhanced).unlink(missing_ok=True)
 
     def _call_api(self, file_path: str) -> TripExtraction:
-        headers = {"Authorization": f"Bearer {settings.upstage_api_key}"}
+        headers = {"Authorization": f"Bearer {settings_store.get("upstage_api_key")}"}
         last_err = ""
         for delay in (0,) + _RETRY_DELAYS:
             if delay:

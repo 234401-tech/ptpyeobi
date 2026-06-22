@@ -38,8 +38,10 @@ _RX_LABEL_PLACE = re.compile(r"출\s*장?\s*지\s*[:：]?\s*(.+)")
 _RX_LABEL_DATETIME = re.compile(r"출\s*장?\s*일?\s*시\s*[:：]?\s*(.+)")
 # 동승자 — "동 승 자", "동승인", "동승자명"
 _RX_LABEL_COMPANIONS = re.compile(r"동\s*승\s*(?:자|인)\s*(?:명)?\s*[:：]?\s*(.+)")
-# 한 인명 — "김승모" 또는 "김 승 모" (글자 사이 공백 허용, 2~5자)
-_RX_KOR_NAME_ONE = re.compile(r"(?:[가-힣]\s*){2,5}")
+# 한 인명 — "김승모" / "김 승 모" / "김 승 · 모" / "김.승.모"
+# 한글 사이에 OCR 잡음(공백·가운데점·점·콤마·하이픈·슬래시)이 끼어도 한 이름으로 인식.
+# 합친 결과에서 한글만 남기면 "김승모".
+_RX_KOR_NAME_ONE = re.compile(r"[가-힣](?:[\s·•.,/\-]*[가-힣]){1,4}")
 
 # 영수증 종류 분류용 키워드
 # 대중교통 = 사용자가 자기 차로 안 갔다는 증거
@@ -236,28 +238,33 @@ def parse_lines(lines: list[tuple[str, float]]) -> TripExtraction:
     """
     blob = "\n".join(t for t, _ in lines)
 
-    # 출장자 — "출장자" 라벨 뒤에서 인명 1명 추출 ("김승모" 또는 "김 승 모")
+    # 출장자 — "출장자" 라벨 뒤에서 인명 1명 추출.
+    # 한글 사이의 잡음(공백/점/중점/콤마/하이픈) 모두 제거하고 한글만 남김.
+    def _clean_name(s: str) -> str:
+        return re.sub(r"[^가-힣]", "", s)
+
     traveler = None
     raw = _label_value(lines, _RX_LABEL_TRAVELER)
     if raw:
         m = _RX_KOR_NAME_ONE.search(raw)
         if m:
-            # 글자 사이 공백 제거 — "김 승 모" → "김승모"
-            traveler = re.sub(r"\s+", "", m.group(0))
+            traveler = _clean_name(m.group(0))
 
     # 동승자 — 콤마/공백 구분된 여러 명 추출
     companion_names: list[str] = []
     raw_comp = _label_value(lines, _RX_LABEL_COMPANIONS)
     if raw_comp:
         for m in _RX_KOR_NAME_ONE.finditer(raw_comp):
-            name = re.sub(r"\s+", "", m.group(0))
+            name = _clean_name(m.group(0))
             if name and name != traveler:
                 companion_names.append(name)
 
-    # 출장지 — "출장지" 라벨 뒤의 값 그대로 (괄호 안 기관명 포함)
+    # 출장지 — "출장지" 라벨 뒤의 값. OCR 이 표 경계선을 화살표(←~⇿) 나
+    # 닫는 인용부호(』」)로 잘못 잡는 경우가 있어 잡음 문자는 제거.
     place = _label_value(lines, _RX_LABEL_PLACE)
     if place:
-        place = place[:80]  # 너무 길면 자름
+        place = re.sub(r"[←-⇿」』]+", "", place).strip()
+        place = place.strip(" :：·-")[:80]
 
     # 날짜: 가장 먼저 등장하는 유효 날짜
     trip_date: date | None = None
@@ -298,10 +305,16 @@ def parse_lines(lines: list[tuple[str, float]]) -> TripExtraction:
 
     # 영수증 후보: "원" 표기가 있는 줄 우선, 없으면 천단위 콤마 숫자.
     # 거리(km)·TEL·사업자번호·카드 마스킹 줄은 제외.
+    #
+    # dedup 전략: 같은 금액이 한 영수증 안에서 "결제금액"+"총 영수 금액" 처럼
+    # 두 번 나오는 건 1건으로 묶고, 다른 영수증(라인이 멀리 떨어진 동일 금액)은
+    # 별개로 보존한다. 왕복 KTX 같이 두 장이 동일 가격일 때 합쳐지지 않도록.
+    NEAR_LINE_GAP = 6  # 같은 영수증으로 간주할 라인 거리
     receipts: list[ReceiptExtraction] = []
-    seen_amounts: dict[int, float] = {}  # 같은 금액은 가장 신뢰도 높은 것만 유지
-    seen_pairs: set[tuple[int, str]] = set()  # 동일 라인의 같은 금액 중복 방지
-    for t, conf in lines:
+    last_idx_by_amt: dict[int, int] = {}  # 금액 → 마지막으로 본 라인 인덱스
+    # 한 라인 안에서 같은 금액이 두 번 정규식 매칭되는 케이스만 막음 (라인 위치 포함).
+    seen_per_line: set[tuple[int, int]] = set()
+    for idx, (t, conf) in enumerate(lines):
         low = t.lower()
         if "km" in low or "tel" in low:
             continue
@@ -321,15 +334,17 @@ def parse_lines(lines: list[tuple[str, float]]) -> TripExtraction:
                 continue
             if not (500 <= amt <= 1_000_000):
                 continue
-            key = (amt, t)
-            if key in seen_pairs:
+            per_line_key = (idx, amt)
+            if per_line_key in seen_per_line:
                 continue
-            seen_pairs.add(key)
-            # 같은 금액이 다른 라인에 반복되면 (예: KTX 영수증의 결제금액 = 총영수금액)
-            # 첫 매치만 유지 (1장 = 1건)
-            if amt in seen_amounts:
+            seen_per_line.add(per_line_key)
+            # 같은 금액이 최근에 본 라인(같은 영수증) 안에서 또 나오면 스킵.
+            # 멀리 떨어진 라인이면 새 영수증으로 등록.
+            prev_idx = last_idx_by_amt.get(amt)
+            if prev_idx is not None and idx - prev_idx <= NEAR_LINE_GAP:
+                last_idx_by_amt[amt] = idx  # 최신 위치로 갱신
                 continue
-            seen_amounts[amt] = conf
+            last_idx_by_amt[amt] = idx
             label = _RX_AMOUNT.sub("", t).strip(" :·-") if has_won else t.strip()
             label = re.sub(r"\d[\d,]*", "", label).strip(" :·-()[]")[:60]
             # 의미 있는 문자가 3자 미만이면 "영수증"으로 폴백 (한자/기호만 남는 경우)

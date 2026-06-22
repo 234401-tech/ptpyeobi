@@ -217,6 +217,13 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
         }
       />
       <div className="px-5 pb-5">
+        {/* 안내 박스 — 표 위로 prominent 하게 */}
+        <div className="mb-3 p-2.5 rounded-md bg-indigo-50 border border-indigo-100 text-[11.5px] text-slate-700 leading-relaxed">
+          <div className="font-semibold text-indigo-700 mb-0.5">📋 그룹웨어 표 셀에 자동 분배가 안 되면 — 셀 클릭 복사</div>
+          아래 표의 <b>각 셀을 직접 클릭</b>하면 그 값 하나만 클립보드에 복사됩니다. 그룹웨어 셀에 한 번씩 Ctrl+V 하세요.
+          왼쪽→오른쪽 순으로 차례로 클릭하면 빠릅니다.
+        </div>
+
         {/* ※지급내역(주관부서 작성) */}
         <div className="text-xs text-slate-700 mb-1.5">
           <span className="font-semibold">※지급내역(주관부서 작성)</span>
@@ -245,13 +252,19 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
                   dash(r.meal),
                   fmt(r.total),
                 ];
+                // 클릭 가능 셀: 호버 시 진한 보라색 + 그림자 + 📋 아이콘, 복사 직후엔 초록.
                 const copyableCellCls = (j) =>
-                  `cursor-pointer transition ${
+                  `relative cursor-pointer transition group/cell ${
                     copiedKey === `cell:${i}:${j}`
-                      ? "bg-emerald-100 ring-1 ring-emerald-400"
-                      : "hover:bg-indigo-50"
+                      ? "bg-emerald-100 ring-1 ring-emerald-500"
+                      : "hover:bg-indigo-100 hover:shadow-inner hover:ring-1 hover:ring-indigo-300"
                   }`;
                 const isEmpty = (v) => v === "" || v === "-";
+                const ClipIcon = () => (
+                  <span className="opacity-0 group-hover/cell:opacity-100 absolute top-0.5 right-0.5 text-[9px] text-indigo-600 leading-none transition">
+                    📋
+                  </span>
+                );
                 return (
                   <tr key={i} className="border-t border-slate-300 text-center">
                     <td
@@ -261,6 +274,7 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
                       onClick={() => !isCompanion && onCopyCell(i, 0)}
                       title={!isCompanion && !isEmpty(cellVals[0]) ? "클릭해서 셀 값만 복사" : ""}
                     >
+                      {!isCompanion && !isEmpty(cellVals[0]) && <ClipIcon />}
                       {isCompanion ? (
                         <input
                           type="text"
@@ -286,6 +300,7 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
                         onClick={() => onCopyCell(i, j)}
                         title={!isEmpty(cellVals[j]) ? "클릭해서 셀 값만 복사" : ""}
                       >
+                        {!isEmpty(cellVals[j]) && <ClipIcon />}
                         {cellVals[j]}
                       </td>
                     ))}
@@ -294,6 +309,7 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
                       onClick={() => onCopyCell(i, 5)}
                       title="클릭해서 셀 값만 복사"
                     >
+                      <ClipIcon />
                       {cellVals[5]}
                     </td>
                   </tr>
@@ -303,6 +319,10 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
           </table>
         </div>
 
+        <p className="text-[10.5px] text-slate-400 mt-1.5">
+          ⓘ "지급내역 복사" 버튼은 자동 분배가 되는 환경(엑셀/한글/일부 그룹웨어)에서 빠릅니다. 그 외엔 위 셀 클릭 방식을 쓰세요.
+        </p>
+
         {/* ※산출내역 */}
         <div className="text-xs text-slate-700 mt-4 mb-1.5">
           <span className="font-semibold">※산출내역</span>
@@ -310,12 +330,6 @@ export function PayoutSummary({ current, state, calc, companionNames, onCompanio
         <pre className="border border-slate-300 p-3 text-xs mono whitespace-pre-wrap text-slate-800 bg-slate-50/40">
 {breakdown || "(산출 내역 없음)"}
         </pre>
-
-        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-          ⓘ <b>지급내역 복사</b> 는 TSV·HTML 둘 다 클립보드에 넣습니다 — 그룹웨어 표의 첫 데이터 셀에 커서 두고 붙여넣으면 셀별로 자동 채워지는 환경이 많습니다.
-          <br/>
-          자동 분배가 안 되는 그룹웨어라면 위 미리보기 표의 <b>셀을 직접 클릭</b>하면 그 값만 복사돼요 → 결재창 셀에 한 번씩 붙여넣기.
-        </p>
       </div>
     </Card>
   );

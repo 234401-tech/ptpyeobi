@@ -10,6 +10,9 @@ export default defineConfig({
   server: {
     // PORT 환경변수 우선 (Claude preview 자동할당). 미지정 시 5173.
     port: Number(process.env.PORT) || 5173,
+    // LAN 의 다른 PC(팀원)에서도 접속 가능하도록 모든 NIC 에서 listen.
+    // → vite 시작 시 "Network: http://192.168.x.x:5173" 추가 표시.
+    host: true,
     proxy: {
       "/api": {
         target: "http://localhost:8000",

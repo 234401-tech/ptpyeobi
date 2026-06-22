@@ -8,6 +8,7 @@ import {
   Car,
   Users,
   Bus,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardHeader } from "./ui/Card.jsx";
 import { Counter } from "./ui/Counter.jsx";
@@ -39,6 +40,7 @@ export function CalculationCard({
   setCompanionNames,
   calc,
   setOverride,
+  onReset,
 }) {
   const {
     mode,
@@ -57,9 +59,23 @@ export function CalculationCard({
         num={2}
         title="자동 추출 · 자동 계산"
         right={
-          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
-            AI 신뢰도 96%
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
+              AI 신뢰도 96%
+            </span>
+            {onReset && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("입력값과 업로드된 증빙을 모두 초기화할까요?")) onReset();
+                }}
+                className="text-[11px] px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 inline-flex items-center gap-1"
+                title="입력/업로드/오버라이드 초기화 — 다음 출장 입력 시작"
+              >
+                <RotateCcw size={11} /> 초기화
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -299,7 +315,27 @@ export function CalculationCard({
             badge={calc.halfPerDiem ? "50% 적용" : null}
             onAmountChange={(v) => setOverride?.("perDiem", v)}
             isOverridden={calc.isOverridden?.perDiem}
-          />
+          >
+            <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-500 mono">
+              <span>출장 일수</span>
+              <Counter
+                value={current.days}
+                onChange={(v) => {
+                  const nextDays = Math.max(1, v);
+                  setCurrentField({ days: nextDays });
+                  // 일수 줄여서 mealsProvided 가 새 최대치를 넘으면 같이 조정
+                  if (mealsProvided > nextDays * 3) {
+                    setState({ mealsProvided: nextDays * 3 });
+                  }
+                }}
+                min={1}
+                max={30}
+              />
+              <span>일</span>
+              <span className="text-slate-300">→</span>
+              <span className="text-slate-700 font-semibold">기본 식비 {current.days * 3}식</span>
+            </div>
+          </CalcRow>
 
           <CalcRow
             icon={<Bed size={14} />}

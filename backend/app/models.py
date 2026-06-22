@@ -101,6 +101,51 @@ class FuelPrice(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class AppSetting(Base):
+    """key-value 설정 테이블. CMS 에서 API 키 등 변경 (백엔드 재시작 불필요)."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BizSystem(Base):
+    """사업명 → 회계시스템 매핑. CMS 에서 관리."""
+
+    __tablename__ = "biz_systems"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    biz_name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    fund_system: Mapped[str] = mapped_column(String, nullable=False)  # 통장|e나라|RCMS|보탬e|지방비
+    note: Mapped[str | None] = mapped_column(String)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class User(Base):
+    """예산담당자/관리자 계정. 일반 사용자(팀원 등)는 아예 접근 불가."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    # admin = 모든 권한 / staff = 추후 확장용 (현재는 admin 만)
+    role: Mapped[str] = mapped_column(String, default="admin")
+    is_active: Mapped[bool] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Attachment(Base):
     """증빙 첨부 파일."""
 

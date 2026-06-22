@@ -8,3 +8,6 @@ httpx>=0.27
 openpyxl>=3.1
 # OCR_PROVIDER=local 사용 시 필요 (PaddleOCR 모델, ONNX Runtime)
 rapidocr-onnxruntime>=1.2
+# 인증 — 사용자 비번 해시 + JWT 토큰
+bcrypt>=4.0
+PyJWT>=2.8

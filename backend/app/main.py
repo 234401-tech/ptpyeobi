@@ -34,9 +34,12 @@ def health():
     return {"status": "ok", "service": "여비뚝딱", "ocr_provider": settings.ocr_provider}
 
 
-from app.routers import calculate, opinet, trips, uploads  # noqa: E402
+from app.routers import admin, auth, biz_systems, calculate, opinet, trips, uploads  # noqa: E402
 
+app.include_router(auth.router)
 app.include_router(calculate.router)
 app.include_router(trips.router)
 app.include_router(opinet.router)
 app.include_router(uploads.router)
+app.include_router(biz_systems.router)
+app.include_router(admin.router)

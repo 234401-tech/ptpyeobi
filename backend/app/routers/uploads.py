@@ -14,6 +14,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.auth import get_current_user
 from app.config import settings
 from app.db import get_db
 from app.models import Attachment
@@ -21,7 +22,11 @@ from app.schemas import ExtractOut, PublicReceiptIn, UploadOut
 from app.services.ocr.base import TripExtraction
 from app.services.ocr.factory import get_ocr
 
-router = APIRouter(prefix="/api/uploads", tags=["uploads"])
+router = APIRouter(
+    prefix="/api/uploads",
+    tags=["uploads"],
+    dependencies=[Depends(get_current_user)],
+)
 
 ALLOWED = {".pdf", ".jpg", ".jpeg", ".png"}
 

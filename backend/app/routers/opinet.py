@@ -7,6 +7,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.auth import get_current_user
 from app.db import get_db
 from app.models import FuelPrice
 from app.schemas import FuelPriceOut
@@ -17,7 +18,11 @@ from app.services.opinet_client import (
     weekday_ko,
 )
 
-router = APIRouter(prefix="/api/opinet", tags=["opinet"])
+router = APIRouter(
+    prefix="/api/opinet",
+    tags=["opinet"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 def _parse_date(s: str) -> date:

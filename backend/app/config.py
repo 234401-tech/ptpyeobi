@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     clova_invoke_url: str = ""
     anthropic_api_key: str = ""
 
+    # 인증 — JWT 서명 시크릿. 운영 시 무작위 긴 문자열로 변경 권장.
+    jwt_secret: str = "여비뚝딱-dev-secret-please-change-in-prod"
+    # 초기 관리자 — seed 가 1회만 등록 (이미 user 가 있으면 무시).
+    admin_username: str = "admin"
+    admin_password: str = "changeme!2026"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

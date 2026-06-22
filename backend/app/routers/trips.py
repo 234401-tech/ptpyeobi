@@ -8,12 +8,24 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
+from pydantic import BaseModel
+
+from app.auth import get_current_user
 from app.db import get_db
 from app.models import PublicReceipt, Trip
 from app.schemas import TripCreate, TripOut, TripUpdate
 from app.services.exporter import trips_to_xlsx
 
-router = APIRouter(prefix="/api/trips", tags=["trips"])
+
+class BulkDeleteIn(BaseModel):
+    ids: list[int]
+
+# 모든 trips 엔드포인트는 로그인 필수
+router = APIRouter(
+    prefix="/api/trips",
+    tags=["trips"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 def _next_no(db: Session) -> int:
@@ -145,3 +157,15 @@ def delete_trip(trip_id: int, db: Session = Depends(get_db)):
     db.delete(trip)
     db.commit()
     return None
+
+
+@router.post("/bulk-delete")
+def bulk_delete(body: BulkDeleteIn, db: Session = Depends(get_db)):
+    """여러 출장 행을 한 번에 삭제. 응답: { deleted: N }."""
+    if not body.ids:
+        return {"deleted": 0}
+    rows = db.query(Trip).filter(Trip.id.in_(body.ids)).all()
+    for r in rows:
+        db.delete(r)
+    db.commit()
+    return {"deleted": len(rows)}

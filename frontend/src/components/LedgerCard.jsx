@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Search, ChevronDown, Download, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Search, ChevronDown, Download, Plus, Pencil, Trash2, Check, X, RotateCcw } from "lucide-react";
 import { Pill } from "./ui/Pill.jsx";
 import { EditableField } from "./ui/EditableField.jsx";
-import { fmt, FUND_SYSTEM_MAP } from "../lib/constants.js";
+import { fmt } from "../lib/constants.js";
 import { api } from "../lib/api.js";
 
 const FUND_OPTIONS = ["통장", "e나라", "RCMS", "보탬e", "지방비"];
@@ -19,6 +19,8 @@ export function LedgerCard({
   busy,
   onUpdateRow,
   onDeleteRow,
+  onReset,
+  bizMap = {},
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
@@ -107,8 +109,22 @@ export function LedgerCard({
       </div>
       {current && (
         <div className="px-4 py-3 border-b border-slate-100 bg-indigo-50/40">
-          <div className="text-[11px] uppercase tracking-[0.1em] text-indigo-700 font-semibold mb-2">
-            추가 예정
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[11px] uppercase tracking-[0.1em] text-indigo-700 font-semibold">
+              추가 예정
+            </div>
+            {onReset && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("입력값과 업로드된 증빙을 모두 초기화할까요?")) onReset();
+                }}
+                className="text-[10.5px] px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 inline-flex items-center gap-1"
+                title="입력/업로드/오버라이드 초기화 — 다음 출장 입력 시작"
+              >
+                <RotateCcw size={10} /> 초기화
+              </button>
+            )}
           </div>
 
           {/* 제목 */}
@@ -129,14 +145,14 @@ export function LedgerCard({
               value={current.biz || ""}
               onChange={(e) => {
                 const biz = e.target.value;
-                const mapped = FUND_SYSTEM_MAP[biz];
+                const mapped = bizMap[biz];
                 setCurrentField(mapped ? { biz, fund: mapped } : { biz });
               }}
               placeholder="사업명 입력 또는 선택"
               className="flex-1 min-w-0 text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-indigo-500"
             />
             <datalist id="biz-options">
-              {Object.keys(FUND_SYSTEM_MAP).map((b) => (
+              {Object.keys(bizMap).map((b) => (
                 <option key={b} value={b} />
               ))}
             </datalist>

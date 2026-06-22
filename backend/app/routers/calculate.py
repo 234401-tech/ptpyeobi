@@ -1,11 +1,16 @@
 """POST /api/calculate — 정산 서버 검증."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.auth import get_current_user
 from app.schemas import CalculateIn, CalculateOut
 from app.services.calculator import calculate
 
-router = APIRouter(prefix="/api/calculate", tags=["calculate"])
+router = APIRouter(
+    prefix="/api/calculate",
+    tags=["calculate"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.post("", response_model=CalculateOut)

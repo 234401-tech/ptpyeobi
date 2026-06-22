@@ -1,7 +1,7 @@
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { fmt } from "../lib/constants.js";
 
-export function FuelPriceCard({ prices, currentDate, currentPrice, hasLive }) {
+export function FuelPriceCard({ prices, currentDate, currentPrice, hasLive, onRefresh, busy }) {
   return (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2">
@@ -20,10 +20,13 @@ export function FuelPriceCard({ prices, currentDate, currentPrice, hasLive }) {
         </div>
         <button
           type="button"
-          disabled
-          className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-md bg-white inline-flex items-center gap-1 opacity-60"
+          onClick={onRefresh}
+          disabled={busy || !onRefresh}
+          className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-md bg-white inline-flex items-center gap-1 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          title={onRefresh ? "오파넷 최신 7일치 다시 받기" : ""}
         >
-          <Download size={11} /> 새로고침
+          {busy ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+          {busy ? "갱신 중…" : "새로고침"}
         </button>
       </div>
       <div className="max-h-[360px] overflow-y-auto">

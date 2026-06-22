@@ -3,6 +3,8 @@ import { api } from "../lib/api.js";
 import { compute } from "../lib/compute.js";
 import { MOCK_CURRENT, MOCK_RECEIPTS } from "../lib/mockData.js";
 
+// 사업명 → 시스템 매핑은 DB 의 biz_systems 로 이전. 훅에서 로드.
+
 function recentFuelRange() {
   // 캐시에 누적된 모든 유가를 함께 보여주기 위해 넉넉히 60일.
   // 오파넷은 그중 최근 7일치만 실제로 보내주고, 나머지 날짜는 DB 캐시에서 hit.
@@ -63,6 +65,22 @@ export function useTravelExpense() {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState({ upload: false, extract: false, add: false });
   const [error, setError] = useState(null);
+  // 사업명·시스템 매핑 — DB 에서 로드 (CMS 에서 추가/수정 가능)
+  const [bizSystems, setBizSystems] = useState([]);
+
+  const loadBizSystems = useCallback(async () => {
+    try {
+      setBizSystems(await api.listBizSystems());
+    } catch (e) {
+      // 토큰 없이 호출되거나 401 인 경우 무시 — 로그인 후 다시 로드됨
+    }
+  }, []);
+
+  // { biz_name → fund_system } 빠른 조회용 객체
+  const bizMap = useMemo(
+    () => Object.fromEntries(bizSystems.map((b) => [b.biz_name, b.fund_system])),
+    [bizSystems]
+  );
 
   // 초기 로드: 대장 + 유가
   const loadLedger = useCallback(async () => {
@@ -92,10 +110,25 @@ export function useTravelExpense() {
     }
   }, []);
 
+  // 사용자가 "새로고침" 클릭 시 — 오파넷에서 최신 7일치 강제 동기화 후 캐시 + UI 갱신
+  const refreshFuel = useCallback(async () => {
+    setBusy((b) => ({ ...b, fuel: true }));
+    setError(null);
+    try {
+      await api.opinetSync();
+      await loadFuel();
+    } catch (e) {
+      setError(`유가 새로고침 실패: ${e.message}`);
+    } finally {
+      setBusy((b) => ({ ...b, fuel: false }));
+    }
+  }, [loadFuel]);
+
   useEffect(() => {
     loadLedger();
     loadFuel();
-  }, [loadLedger, loadFuel]);
+    loadBizSystems();
+  }, [loadLedger, loadFuel, loadBizSystems]);
 
   // 출장일과 오파넷 캐시 자동 매칭 → 유가 자동 적용.
   // 출장일이 캐시 범위 밖이면(오파넷은 최근 7일치만 제공) 가장 최신 가격으로 폴백.
@@ -265,6 +298,34 @@ export function useTravelExpense() {
     return () => window.removeEventListener("paste", onPaste);
   }, [pickFile]);
 
+  // 다음 여비 계산을 위해 입력/업로드/오버라이드 모두 초기화. ledger·유가 캐시는 보존.
+  const resetForm = useCallback(() => {
+    setCurrent(MOCK_CURRENT);
+    _setState((s) => ({
+      ...s,
+      mode: "self_drive",
+      companions: 0,
+      companionNames: [],
+      mealsProvided: 0,
+      nights: 0,
+      region: "metro",
+      publicReceipts: [],
+      overrides: {
+        fuelCost: null,
+        tollSum: null,
+        publicCost: null,
+        mealCost: null,
+        perDiem: null,
+        lodgeCost: null,
+      },
+    }));
+    setUploads((arr) => {
+      arr.forEach((x) => x.previewUrl && URL.revokeObjectURL(x.previewUrl));
+      return [];
+    });
+    setError(null);
+  }, []);
+
   // 대장에 추가
   const addToLedger = useCallback(async () => {
     setBusy((b) => ({ ...b, add: true }));
@@ -305,12 +366,14 @@ export function useTravelExpense() {
       setLedger((rs) => [created, ...rs]);
       setJustAddedNo(created.no);
       setTimeout(() => setJustAddedNo(null), 2400);
+      // 추가 성공 → 다음 건을 위해 폼 자동 초기화
+      resetForm();
     } catch (e) {
       setError(`저장 실패: ${e.message}`);
     } finally {
       setBusy((b) => ({ ...b, add: false }));
     }
-  }, [current, state, calc]);
+  }, [current, state, calc, resetForm]);
 
   // 대장 행 수정 — PATCH
   const updateLedgerRow = useCallback(async (id, patch) => {
@@ -361,5 +424,10 @@ export function useTravelExpense() {
     updateLedgerRow,
     deleteLedgerRow,
     setOverride,
+    refreshFuel,
+    resetForm,
+    bizSystems,
+    bizMap,
+    reloadBizSystems: loadBizSystems,
   };
 }

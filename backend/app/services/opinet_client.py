@@ -17,6 +17,7 @@ from datetime import date, datetime
 
 import httpx
 
+from app import settings_store
 from app.config import settings
 
 OPINET_RECENT = "https://www.opinet.co.kr/api/avgRecentPrice.do"
@@ -37,11 +38,12 @@ def weekday_ko(d: date) -> str:
 
 async def fetch_recent_prices() -> dict[date, int]:
     """최근 7일치 보통휘발유 평균가를 {date: 원/L 정수}로 반환."""
-    if not settings.opinet_api_key:
+    api_key = settings_store.get("opinet_api_key")
+    if not api_key:
         raise OpinetNotConfigured("OPINET_API_KEY 미설정")
 
     params = {
-        "code": settings.opinet_api_key,
+        "code": api_key,
         "out": "json",
         "prodcd": settings.opinet_prodcd,  # B027 = 자동차용 보통휘발유
     }
