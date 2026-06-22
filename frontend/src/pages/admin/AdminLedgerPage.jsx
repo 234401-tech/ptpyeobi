@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Search, Trash2, Pencil, Check, X, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download, Search, Trash2, Pencil, Check, X, RefreshCw, Upload, Loader2 } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { fmt } from "../../lib/constants.js";
 import { Pill } from "../../components/ui/Pill.jsx";
@@ -24,6 +24,8 @@ export function AdminLedgerPage() {
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
   const [savingId, setSavingId] = useState(null);
+
+  const [importOpen, setImportOpen] = useState(false);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -170,6 +172,14 @@ export function AdminLedgerPage() {
           >
             <RefreshCw size={11} className={busy ? "animate-spin" : ""} />
             새로고침
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-md bg-white hover:bg-slate-50 inline-flex items-center gap-1"
+            title="XLSX 파일로 출장대장 일괄 업로드"
+          >
+            <Upload size={11} /> 일괄 업로드
           </button>
           <button
             type="button"
@@ -419,6 +429,176 @@ export function AdminLedgerPage() {
           </tbody>
         </table>
       </div>
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onDone={load}
+      />
     </section>
+  );
+}
+
+// ──────────────── 일괄 업로드 모달 ────────────────
+
+function ImportModal({ open, onClose, onDone }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null); // { total, preview[], warnings[] }
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
+
+  if (!open) return null;
+
+  const reset = () => {
+    setFile(null);
+    setPreview(null);
+    setBusy(false);
+    setError("");
+  };
+  const close = () => { reset(); onClose(); };
+
+  const onPick = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setPreview(null);
+    setError("");
+  };
+
+  const doPreview = async () => {
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api.importTrips(file, { dryRun: true });
+      setPreview(r);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doImport = async () => {
+    if (!file) return;
+    if (!window.confirm(`${preview?.total ?? "?"}건을 실제로 출장대장에 등록합니다. 진행할까요?`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api.importTrips(file, { dryRun: false });
+      alert(`${r.created}건 등록 완료${r.warnings?.length ? ` (경고 ${r.warnings.length}건)` : ""}`);
+      reset();
+      onClose();
+      onDone?.();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 px-4" onClick={close}>
+      <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+          <div className="text-sm font-semibold inline-flex items-center gap-2">
+            <Upload size={14} className="text-indigo-600" /> 출장대장 일괄 업로드
+          </div>
+          <button type="button" onClick={close} className="text-slate-400 hover:text-slate-700">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-[11.5px] text-slate-500 leading-relaxed">
+            <b>XLSX 파일</b> 만 지원합니다. 한글 헤더가 1행에 있어야 하며 <b>출장자·출장일·출장지·제목</b> 컬럼은 필수입니다.
+            <br />
+            기존 "XLSX 다운로드" 로 받은 파일을 수정해서 다시 올리는 방식이 가장 안전합니다.
+          </p>
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx"
+            onChange={onPick}
+            className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-indigo-600 file:text-white hover:file:bg-indigo-700"
+          />
+
+          {error && (
+            <div className="text-[11.5px] text-red-700 bg-red-50 border border-red-100 rounded px-2.5 py-1.5 whitespace-pre-line">{error}</div>
+          )}
+
+          {preview && (
+            <div className="border border-slate-200 rounded bg-slate-50/40">
+              <div className="px-3 py-2 text-[11px] text-slate-600 border-b border-slate-100">
+                미리보기 — 총 <b className="text-indigo-700">{preview.total}건</b>
+                {preview.warnings?.length > 0 && (
+                  <span className="ml-2 text-amber-700">경고 {preview.warnings.length}건</span>
+                )}
+              </div>
+              <div className="max-h-56 overflow-y-auto">
+                <table className="w-full text-[11px]">
+                  <thead className="bg-slate-100 text-[10px] uppercase text-slate-500">
+                    <tr>
+                      <th className="px-2 py-1 text-left">출장일</th>
+                      <th className="px-2 py-1 text-left">출장자</th>
+                      <th className="px-2 py-1 text-left">출장지</th>
+                      <th className="px-2 py-1 text-right">합계</th>
+                      <th className="px-2 py-1 text-center">시스템</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.preview.map((t, i) => (
+                      <tr key={i} className="border-t border-slate-100">
+                        <td className="px-2 py-1 text-slate-600">{t.trip_date}</td>
+                        <td className="px-2 py-1">{t.traveler_name}</td>
+                        <td className="px-2 py-1 truncate max-w-[160px]">{t.place}</td>
+                        <td className="px-2 py-1 text-right tabular">{fmt(t.total)}</td>
+                        <td className="px-2 py-1 text-center text-slate-500">{t.fund_system || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {preview.warnings?.length > 0 && (
+                <div className="px-3 py-2 border-t border-slate-100 max-h-24 overflow-y-auto bg-amber-50/50 text-[10.5px] text-amber-800 space-y-0.5">
+                  {preview.warnings.map((w, i) => <div key={i}>· {w}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between gap-2 bg-slate-50/50 rounded-b-lg">
+          <span className="text-[10.5px] text-slate-400">
+            {file ? file.name : "파일을 선택하세요"}
+          </span>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={close} className="text-xs px-3 py-1.5 border border-slate-200 rounded bg-white hover:bg-slate-50">
+              취소
+            </button>
+            {!preview ? (
+              <button
+                type="button"
+                onClick={doPreview}
+                disabled={!file || busy}
+                className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded inline-flex items-center gap-1"
+              >
+                {busy ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                {busy ? "분석 중…" : "미리보기"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={doImport}
+                disabled={busy || preview.total === 0}
+                className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded inline-flex items-center gap-1"
+              >
+                {busy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                {busy ? "등록 중…" : `${preview.total}건 등록`}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

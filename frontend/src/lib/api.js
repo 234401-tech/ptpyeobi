@@ -64,6 +64,23 @@ export const api = {
   bulkDeleteTrips: (ids) =>
     request(`/trips/bulk-delete`, { method: "POST", body: JSON.stringify({ ids }) }),
 
+  importTrips: async (file, { dryRun = true } = {}) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${BASE}/trips/import?dry_run=${dryRun}`, {
+      method: "POST",
+      body: fd,
+      headers: authHeaders(),
+    });
+    if (res.status === 401) { tokenStore.clear(); onUnauthorized(); throw new Error("401 로그인이 필요합니다"); }
+    if (!res.ok) {
+      let detail = res.statusText;
+      try { detail = (await res.json()).detail || detail; } catch (_) {}
+      throw new Error(detail);
+    }
+    return res.json();
+  },
+
   opinetPrices: (from, to) =>
     request(`/opinet/prices?from=${from}&to=${to}`),
   opinetSync: () => request(`/opinet/sync`, { method: "POST" }),

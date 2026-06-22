@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
@@ -15,6 +15,7 @@ from app.db import get_db
 from app.models import PublicReceipt, Trip
 from app.schemas import TripCreate, TripOut, TripUpdate
 from app.services.exporter import trips_to_xlsx
+from app.services.importer import ImportError as TripImportError, parse_xlsx
 
 
 class BulkDeleteIn(BaseModel):
@@ -169,3 +170,60 @@ def bulk_delete(body: BulkDeleteIn, db: Session = Depends(get_db)):
         db.delete(r)
     db.commit()
     return {"deleted": len(rows)}
+
+
+@router.post("/import")
+async def import_trips(
+    file: UploadFile = File(...),
+    dry_run: bool = Query(True, description="true 면 파싱만, false 면 실제 저장"),
+    db: Session = Depends(get_db),
+):
+    """XLSX 파일로 출장대장 일괄 업로드.
+
+    - dry_run=true: 파싱 결과만 반환 (미리보기)
+    - dry_run=false: 실제 DB 저장. No 컬럼 비어있으면 자동 채번.
+    """
+    name = (file.filename or "").lower()
+    if not name.endswith(".xlsx"):
+        raise HTTPException(400, "XLSX 파일만 지원합니다")
+    content = await file.read()
+
+    try:
+        parsed, warnings = parse_xlsx(content)
+    except TripImportError as e:
+        raise HTTPException(400, str(e))
+
+    if dry_run:
+        # 미리보기 — 앞 20건만 + 경고
+        return {
+            "total": len(parsed),
+            "preview": parsed[:20],
+            "warnings": warnings,
+        }
+
+    if not parsed:
+        return {"created": 0, "warnings": warnings}
+
+    # 실제 저장. No 가 비어있는 행은 _next_no 로 채번 (충돌 회피).
+    next_no = _next_no(db)
+    used_nos: set[int] = set()
+    created_count = 0
+    for trip_data in parsed:
+        # 명시된 no 가 이미 존재하면 새로 채번
+        explicit_no = trip_data.get("no")
+        if explicit_no:
+            exists = db.query(Trip).filter(Trip.no == explicit_no).first()
+            if exists or explicit_no in used_nos:
+                trip_data["no"] = next_no
+                used_nos.add(next_no)
+                next_no += 1
+            else:
+                used_nos.add(explicit_no)
+        else:
+            trip_data["no"] = next_no
+            used_nos.add(next_no)
+            next_no += 1
+        db.add(Trip(**trip_data))
+        created_count += 1
+    db.commit()
+    return {"created": created_count, "warnings": warnings}
